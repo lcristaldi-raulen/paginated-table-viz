@@ -1,0 +1,2173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Paginated Table — Settings</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font: 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #1f2937; background: #fff;
+    display: flex; flex-direction: column; height: 100vh;
+  }
+  #tabs {
+    flex: 0 0 auto; display: flex; border-bottom: 1px solid #e5e7eb; background: #f9fafb;
+  }
+  .tab {
+    flex: 1 1 auto; padding: 9px 4px; text-align: center; cursor: pointer;
+    font-size: 12px; font-weight: 500; color: #6b7280; border-bottom: 2px solid transparent;
+  }
+  .tab:hover { background: #f3f4f6; }
+  .tab.active { color: #1f2937; border-bottom-color: #2f6f4e; background: #fff; }
+  #body { flex: 1 1 auto; overflow-y: auto; padding: 14px 16px; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .row { display: flex; align-items: center; gap: 10px; margin-bottom: 11px; }
+  .row label.lbl { flex: 0 0 46%; font-size: 12px; color: #374151; }
+  .row .ctl { flex: 1 1 auto; display: flex; align-items: center; gap: 6px; }
+  .row .ctl.two input[type="text"] { flex: 1 1 0; min-width: 0; }
+  input[type="text"], input[type="number"], select {
+    width: 100%; font: inherit; padding: 4px 6px;
+    border: 1px solid #d1d5db; border-radius: 4px; background: #fff;
+  }
+  input[type="color"] {
+    width: 40px; height: 26px; padding: 0; border: 1px solid #d1d5db;
+    border-radius: 4px; background: #fff; cursor: pointer;
+  }
+  input[type="range"] { width: 100%; }
+  .rangeval { flex: 0 0 34px; text-align: right; font-variant-numeric: tabular-nums; color: #6b7280; font-size: 11.5px; }
+  .check { display: flex; align-items: center; gap: 7px; margin-bottom: 9px; font-size: 12px; color: #374151; }
+  .check input { width: 14px; height: 14px; }
+  h3 {
+    margin: 18px 0 9px; font-size: 11px; text-transform: uppercase;
+    letter-spacing: .06em; color: #9ca3af; font-weight: 600;
+  }
+  h3:first-child { margin-top: 0; }
+  .hint { font-size: 11px; color: #9ca3af; margin: -5px 0 11px; line-height: 1.45; }
+  #footer {
+    flex: 0 0 auto; display: flex; gap: 8px; align-items: center;
+    padding: 10px 16px; border-top: 1px solid #e5e7eb; background: #f9fafb;
+  }
+  #footer .spacer { flex: 1 1 auto; }
+  button {
+    font: inherit; padding: 6px 14px; border-radius: 4px; cursor: pointer;
+    border: 1px solid #d1d5db; background: #fff; color: #374151;
+  }
+  button:hover { background: #f3f4f6; }
+  button.primary { background: #2f6f4e; border-color: #2f6f4e; color: #fff; font-weight: 600; }
+  button.primary:hover { background: #265a40; }
+  button.link { border: none; background: none; color: #6b7280; text-decoration: underline; padding: 6px 2px; }
+  .swatches { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+  .swatch {
+    border: 1px solid #d1d5db; border-radius: 4px; padding: 4px 9px;
+    font-size: 11.5px; cursor: pointer; background: #fff;
+  }
+  .swatch:hover { border-color: #2f6f4e; }
+
+  /* per-column date-label picker */
+  #colPicker { border: 1px solid #e5e7eb; border-radius: 5px; overflow: hidden; margin-bottom: 6px; }
+  .cp-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 8px; font-size: 12px; border-top: 1px solid #f1f2f4;
+  }
+  .cp-row:first-child { border-top: none; }
+  .cp-row:nth-child(even) { background: #fafbfc; }
+  .cp-row.on { background: #f0f7f3; }
+  .cp-row input[type="checkbox"] { width: 14px; height: 14px; flex: 0 0 auto; }
+  .cp-name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cp-name .cp-meas { color: #9ca3af; font-size: 10px; margin-left: 5px; }
+  .cp-row input[type="number"] { width: 52px; flex: 0 0 auto; text-align: center; }
+  .cp-all { flex: 0 0 30px; text-align: center; }
+  input.cp-all { width: 14px; height: 14px; margin: 0 8px; }
+  .cp-head .cp-all { flex: 0 0 30px; }
+  .cp-prev {
+    flex: 0 0 132px; text-align: right; color: #6b7280; font-size: 11px;
+    line-height: 1.25; display: flex; flex-direction: column; align-items: flex-end;
+  }
+  .cp-prev .cp-l1 { color: #374151; font-weight: 600; }
+  .cp-head {
+    display: flex; gap: 8px; padding: 4px 8px; font-size: 10px; color: #9ca3af;
+    text-transform: uppercase; letter-spacing: .05em; background: #f3f4f6;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .cp-head .cp-name { flex: 1 1 auto; }
+  .cp-head .cp-n { flex: 0 0 52px; text-align: center; }
+  .cp-head .cp-p { flex: 0 0 132px; text-align: right; }
+  .cp-band { flex: 0 0 168px; }
+  input.cp-band { width: 168px; font-size: 11.5px; padding: 3px 6px; }
+  .cp-head .cp-band { text-align: left; }
+  .cp-tools { display: flex; gap: 6px; margin-bottom: 8px; }
+  .cp-tools button { padding: 3px 9px; font-size: 11.5px; }
+  #bandPicker, #widthPicker, #namePicker { border: 1px solid #e5e7eb; border-radius: 5px; overflow: hidden; margin-bottom: 6px; }
+  #namePicker input.cp-band:disabled { background: #f3f4f6; color: #9ca3af; }
+  .cp-w { flex: 0 0 62px; }
+  input.cp-w { width: 62px; font-size: 11.5px; padding: 3px 5px; text-align: center; }
+  .cp-head .cp-w { text-align: center; }
+  .cp-div { flex: 0 0 30px; text-align: center; }
+  input.cp-div { width: 14px; height: 14px; margin: 0 8px; flex: 0 0 auto; }
+  #imgPreviewWrap {
+    border: 1px solid #e5e7eb; border-radius: 5px; padding: 8px; margin-bottom: 8px;
+    background: repeating-conic-gradient(#f3f4f6 0% 25%, #ffffff 0% 50%) 0 0/14px 14px;
+    text-align: center;
+  }
+  #imgPreview { max-width: 100%; max-height: 90px; vertical-align: middle; }
+  .cp-align { flex: 0 0 84px; }
+  select.cp-align { width: 84px; font-size: 11.5px; padding: 3px 4px; }
+  .cp-head .cp-align { text-align: center; }
+  #colPickerEmpty, #bandPickerEmpty, #widthPickerEmpty, #namePickerEmpty {
+    border: 1px dashed #d1d5db; border-radius: 5px; padding: 10px;
+    font-size: 11.5px; color: #6b7280; line-height: 1.5; margin-bottom: 8px;
+  }
+  /* conditional-formatting rule cards */
+  .rule {
+    border: 1px solid #e5e7eb; border-radius: 5px; padding: 8px;
+    margin-bottom: 8px; background: #fafbfc;
+  }
+  .rule-line { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  .rule-line:last-child { margin-bottom: 0; }
+  .rule-line select, .rule-line input[type="text"], .rule-line input[type="number"] {
+    font-size: 11.5px; padding: 3px 5px; width: auto; flex: 1 1 auto; min-width: 0;
+  }
+  .rule-line .rv { flex: 0 0 72px; }
+  .rule-line .rvf { flex: 1 1 auto; min-width: 0; }
+  .rule-line label {
+    font-size: 11px; color: #6b7280; display: flex; align-items: center; gap: 4px;
+    white-space: nowrap;
+  }
+  .rule-line input[type="checkbox"] { width: 13px; height: 13px; }
+  .rule-line input[type="color"] { width: 30px; height: 22px; flex: 0 0 30px; }
+  .sort-line { background: #fafbfc; border: 1px solid #e5e7eb; border-radius: 5px;
+    padding: 6px 8px; margin-bottom: 6px; }
+  .sort-num {
+    flex: 0 0 18px; text-align: center; font-size: 11px; font-weight: 600;
+    color: #6b7280; background: #eef1f5; border-radius: 3px; padding: 1px 0;
+  }
+  .sort-dir { flex: 0 0 108px; }
+  .sort-move {
+    flex: 0 0 26px; padding: 2px 0; font-size: 12px; line-height: 1;
+  }
+  .sort-move:disabled { opacity: .35; cursor: default; }
+  .rule-del {
+    margin-left: auto; padding: 2px 8px; font-size: 11px;
+    border-color: #fca5a5; color: #991b1b; background: #fff;
+  }
+  .rule-del:hover { background: #fee2e2; }
+  .rule-preview {
+    font-size: 11px; color: #6b7280; padding: 2px 2px 0;
+  }
+  textarea#dateColumnMapText, textarea#headerBandsText, textarea#columnWidthsText, textarea#headerNamesText {
+    width: 100%; font: 11px ui-monospace, Menlo, Consolas, monospace;
+    border: 1px solid #d1d5db; border-radius: 4px; padding: 5px; min-height: 56px;
+  }
+</style>
+</head>
+<body>
+
+<div id="tabs">
+  <div class="tab active" data-panel="p-page">Pages</div>
+  <div class="tab" data-panel="p-table">Table</div>
+  <div class="tab" data-panel="p-head">Headers</div>
+  <div class="tab" data-panel="p-type">Type</div>
+  <div class="tab" data-panel="p-color">Colors</div>
+  <div class="tab" data-panel="p-rules">Rules</div>
+  <div class="tab" data-panel="p-pdf">PDF</div>
+</div>
+
+<div id="body">
+
+  <!-- ================= PAGINATION ================= -->
+  <div class="panel active" id="p-page">
+    <h3>Page size</h3>
+    <div class="row">
+      <label class="lbl" for="rowsPerPage">Rows per page</label>
+      <div class="ctl"><input type="number" id="rowsPerPage" min="1" max="5000" step="1" /></div>
+    </div>
+    <div class="row">
+      <label class="lbl" for="rowsPerPageOptions">Size choices</label>
+      <div class="ctl"><input type="text" id="rowsPerPageOptions" placeholder="10,25,50,100,250" /></div>
+    </div>
+    <div class="hint">Comma-separated list offered in the rows-per-page dropdown.</div>
+
+    <h3>Control bar</h3>
+    <div class="row">
+      <label class="lbl" for="barPosition">Position</label>
+      <div class="ctl">
+        <select id="barPosition">
+          <option value="bottom">Bottom</option>
+          <option value="top">Top</option>
+        </select>
+      </div>
+    </div>
+    <div class="check"><input type="checkbox" id="showNumberedPages" /><label for="showNumberedPages">Numbered page buttons (1 2 3 … N)</label></div>
+    <div class="row">
+      <label class="lbl" for="numberedWindow">Buttons shown</label>
+      <div class="ctl">
+        <input type="range" id="numberedWindow" min="5" max="15" step="1" />
+        <span class="rangeval" id="numberedWindowVal"></span>
+      </div>
+    </div>
+    <div class="check"><input type="checkbox" id="showJump" /><label for="showJump">"Go to page" box</label></div>
+    <div class="check"><input type="checkbox" id="showRowsPerPage" /><label for="showRowsPerPage">Rows-per-page dropdown</label></div>
+    <div class="check"><input type="checkbox" id="showTotals" /><label for="showTotals">Row counter (1–25 of 412 rows)</label></div>
+    <div class="check"><input type="checkbox" id="showSearch" /><label for="showSearch">Quick filter box</label></div>
+    <div class="check"><input type="checkbox" id="showExport" /><label for="showExport">CSV download button</label></div>
+    <div class="hint">Arrow keys, Page Up/Down, Home and End also change pages.</div>
+  </div>
+
+  <!-- ================= TABLE ================= -->
+  <div class="panel" id="p-table">
+    <h3>Grouping</h3>
+    <div class="check"><input type="checkbox" id="showGroupBands" /><label for="showGroupBands">Show group header bands</label></div>
+    <div class="check"><input type="checkbox" id="repeatGroupHeader" /><label for="repeatGroupHeader">Repeat the band when a group spans pages</label></div>
+    <div class="check"><input type="checkbox" id="showGroupCounts" /><label for="showGroupCounts">Show row count next to the group name</label></div>
+    <div class="row">
+      <label class="lbl" for="groupPrefix">Band label prefix</label>
+      <div class="ctl"><input type="text" id="groupPrefix" placeholder="e.g. Superintendent: " /></div>
+    </div>
+    <div class="hint">Grouping uses whatever dimension sits on the <b>Group By</b> shelf of the marks card.</div>
+
+    <h3>Columns</h3>
+    <div class="hint">Header text and date labels live on the <b>Headers</b> tab.</div>
+    <div class="cp-tools">
+      <button type="button" id="widthClear">Reset widths, sizes, alignment &amp; dividers</button>
+    </div>
+    <div id="widthPickerEmpty" style="display:none">
+      No column list available — open this dialog from the ⚙ button on a sheet that already has
+      fields on the <b>Columns</b> shelf. You can still edit widths by hand below as
+      <code>{"Field Name": 120}</code>.
+    </div>
+    <div id="widthPicker"></div>
+    <input type="hidden" id="columnWidths" />
+    <input type="hidden" id="columnAligns" />
+    <input type="hidden" id="columnFontSizes" />
+    <input type="hidden" id="dividerCols" />
+    <textarea id="columnWidthsText" style="display:none"></textarea>
+    <div class="hint">Width and font size are in pixels; leave either blank for automatic. A column
+      with a set width always wraps its text inside that width, and the row grows to fit.
+      <b>Align</b> overrides the default, which right-aligns numbers and left-aligns everything
+      else.</div>
+    <div class="row">
+      <label class="lbl" for="freezeCols">Freeze first N columns</label>
+      <div class="ctl">
+        <input type="range" id="freezeCols" min="0" max="8" step="1" />
+        <span class="rangeval" id="freezeColsVal"></span>
+      </div>
+    </div>
+    <div class="row">
+      <label class="lbl" for="colMin">Min column width</label>
+      <div class="ctl">
+        <input type="range" id="colMin" min="30" max="240" step="5" />
+        <span class="rangeval" id="colMinVal"></span>
+      </div>
+    </div>
+
+    <h3>Rows</h3>
+    <div class="row">
+      <label class="lbl" for="rowPad">Row padding</label>
+      <div class="ctl">
+        <input type="range" id="rowPad" min="0" max="14" step="1" />
+        <span class="rangeval" id="rowPadVal"></span>
+      </div>
+    </div>
+    <div class="check"><input type="checkbox" id="banding" /><label for="banding">Alternating row shading</label></div>
+    <div class="check"><input type="checkbox" id="showRowNumbers" /><label for="showRowNumbers">Row numbers</label></div>
+    <div class="check"><input type="checkbox" id="wrapText" /><label for="wrapText">Wrap long text in every column (off = truncate with “…”)</label></div>
+    <div class="row">
+      <label class="lbl" for="maxLines">Max wrapped lines</label>
+      <div class="ctl">
+        <input type="range" id="maxLines" min="0" max="10" step="1" />
+        <span class="rangeval" id="maxLinesVal"></span>
+      </div>
+    </div>
+    <div class="hint">0 = no limit, rows grow as tall as the text needs. Any other value caps the
+      cell at that many lines and trims the rest.</div>
+
+    <h3>Empty values</h3>
+    <div class="row">
+      <label class="lbl" for="nullDisplay">Show nulls as</label>
+      <div class="ctl">
+        <select id="nullDisplay">
+          <option value="blank">Blank</option>
+          <option value="zero">0 (numeric columns only)</option>
+          <option value="dash">– (en dash)</option>
+          <option value="text">Custom text</option>
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <label class="lbl" for="nullText">Custom text</label>
+      <div class="ctl"><input type="text" id="nullText" placeholder="e.g. n/a" /></div>
+    </div>
+    <div class="hint">Choosing <b>0</b> also makes conditional-formatting rules treat those cells as
+      zero rather than skipping them.</div>
+
+    <h3>Sort order</h3>
+    <div class="hint">Rows are sorted by these levels in order; each one breaks ties in the one
+      above. The default first level is the <b>Group By</b> value ascending, which is what keeps the
+      group bands contiguous.</div>
+    <div class="cp-tools">
+      <button type="button" id="sortAdd">Add level</button>
+      <button type="button" id="sortReset">Reset to Group By ascending</button>
+    </div>
+    <div id="sortList"></div>
+    <input type="hidden" id="sortLevels" />
+    <div id="sortEmpty" class="hint">No sort levels — rows keep Tableau's own order.</div>
+    <div class="check"><input type="checkbox" id="groupSortFirst" /><label for="groupSortFirst">Keep the Group By level first when sorting by a header</label></div>
+    <div class="hint">With this on, clicking a column header sorts <i>within</i> each group instead
+      of breaking the groups apart. Shift-click a second header to nest another level under it.</div>
+
+    <h3>Interaction</h3>
+    <div class="check"><input type="checkbox" id="allowSort" /><label for="allowSort">Sort by clicking a column header</label></div>
+    <div class="check"><input type="checkbox" id="showSortCaret" /><label for="showSortCaret">Mark sorted columns with an arrow in the header</label></div>
+    <div class="check"><input type="checkbox" id="selectOnClick" /><label for="selectOnClick">Clicking a row selects that mark in Tableau</label></div>
+  </div>
+
+  <!-- ================= HEADERS ================= -->
+  <div class="panel" id="p-head">
+    <h3>Header text</h3>
+    <div class="cp-tools">
+      <button type="button" id="nameClear">Reset all to field names</button>
+      <button type="button" id="nameHideAll">Hide all</button>
+      <button type="button" id="nameShowAll">Show all</button>
+    </div>
+    <div id="namePickerEmpty" style="display:none">
+      No column list available — open this dialog from the ⚙ button on a sheet that already has
+      fields on the <b>Columns</b> shelf. You can still edit names by hand below as
+      <code>{"Field Name": "Heading"}</code>.
+    </div>
+    <div id="namePicker"></div>
+    <input type="hidden" id="headerNames" />
+    <input type="hidden" id="hiddenHeaders" />
+    <input type="hidden" id="headerLabels" />
+    <textarea id="headerNamesText" style="display:none"></textarea>
+    <div class="hint">Leave a name blank to keep Tableau's field name. <b>Hide</b> blanks the header
+      cell for that column — the column and its data stay, only the heading text goes, which is what
+      you want under a merged band that already names the group.</div>
+
+    <h3>Merged bands</h3>
+    <div class="check"><input type="checkbox" id="showHeaderBands" /><label for="showHeaderBands">Show a merged band row above the column headers</label></div>
+    <div class="hint">Give columns the same band name to merge them into one heading spanning those
+      columns. Only <i>adjacent</i> columns merge, so two runs with the same name stay separate.</div>
+    <div class="cp-tools">
+      <button type="button" id="bandNone">Clear all</button>
+    </div>
+    <div id="bandPickerEmpty" style="display:none">
+      No column list available — open this dialog from the ⚙ button on a sheet that already has
+      fields on the <b>Columns</b> shelf. You can still edit the mapping by hand below as
+      <code>{"Field Name": "BAND"}</code>.
+    </div>
+    <div id="bandPicker"></div>
+    <input type="hidden" id="headerBands" />
+    <textarea id="headerBandsText" style="display:none"></textarea>
+    <div id="bandSummary" class="hint"></div>
+    <div class="check"><input type="checkbox" id="bandDateRange" /><label for="bandDateRange">Add the overall date range to bands covering dated columns</label></div>
+    <div class="hint">A band spanning Week 1–7 also shows the full span those columns cover — the
+      earliest start to the latest end, e.g. <i>Jun 20 – Aug 7</i>. Columns with a date label but no
+      band name group into a range band of their own, so you can get this without naming anything.</div>
+    <div class="row">
+      <label class="lbl" for="bandDateStyle">Range position</label>
+      <div class="ctl">
+        <select id="bandDateStyle">
+          <option value="stack">Stacked under the band name</option>
+          <option value="inline">In brackets after the name</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="check"><input type="checkbox" id="bandSpanUnbanded" /><label for="bandSpanUnbanded">Show the band only over columns that have one</label></div>
+    <div class="hint">Columns with no band name take the full height of both header tiers, so their
+      heading uses the whole block instead of sitting under an empty strip. Untick to give
+      every column a band cell, empty or not. This applies to the PDF as well as the view.</div>
+    <div class="check"><input type="checkbox" id="spanHeaderTop" /><label for="spanHeaderTop">Top-align a heading that spans both tiers</label></div>
+    <div class="hint">On, such a heading sits at the top of the merged block, level with the band
+      names beside it. Off, it follows the <b>Header vertical</b> setting below like every other
+      heading.</div>
+    <div class="check"><input type="checkbox" id="bandFitColumns" /><label for="bandFitColumns">Size the band to the sum of its columns</label></div>
+    <div class="hint">On, a band is exactly as wide as the columns beneath it and a long name is
+      trimmed to fit. Off, a long band name can stretch those columns wider than the widths you set
+      for them.</div>
+    <div class="check"><input type="checkbox" id="bandWrap" /><label for="bandWrap">Wrap a long band name onto more lines</label></div>
+    <div class="hint">Instead of trimming a name that will not fit, break it across lines and grow the
+      band row to suit. The columns underneath keep the widths you set.</div>
+    <div class="check"><input type="checkbox" id="bandDividers" /><label for="bandDividers">Draw divider lines at band boundaries</label></div>
+    <div class="hint">A vertical rule down the full height of the table wherever one band ends and
+      the next begins. Works even with the band row itself hidden. Tick <b>Div</b> beside any column
+      on the Table tab to add a line to the left of that column too.</div>
+    <div class="row">
+      <label class="lbl" for="dividerWidth">Divider weight</label>
+      <div class="ctl">
+        <input type="range" id="dividerWidth" min="1" max="6" step="1" />
+        <span class="rangeval" id="dividerWidthVal"></span>
+      </div>
+    </div>
+    <div class="row">
+      <label class="lbl" for="dividerColor">Divider colour</label>
+      <div class="ctl"><input type="color" id="dividerColor" /></div>
+    </div>
+
+    <div class="row">
+      <label class="lbl" for="bandAlign">Band text</label>
+      <div class="ctl">
+        <select id="bandAlign">
+          <option value="center">Centred over its columns</option>
+          <option value="left">Left-aligned</option>
+        </select>
+      </div>
+    </div>
+
+    <h3>Date labels</h3>
+    <div class="check"><input type="checkbox" id="dateHeaders" /><label for="dateHeaders">Label week columns with their date range</label></div>
+    <div class="hint">Puts “Aug 1–7” under a “Week 1” header, with the dates coming from the
+      parameter below.</div>
+    <div class="row">
+      <label class="lbl" for="dateParamName">Tableau parameter</label>
+      <div class="ctl"><input type="text" id="dateParamName" placeholder="Enter Through Week Ended Date" /></div>
+    </div>
+    <div class="hint">The report's through-date. Labels recompute automatically whenever this
+      parameter changes — nothing to retype.</div>
+    <div class="row">
+      <label class="lbl" for="dateAnchorFallback">Fallback date</label>
+      <div class="ctl"><input type="text" id="dateAnchorFallback" placeholder="8/7/2026 — used only if the parameter isn't found" /></div>
+    </div>
+    <div class="row">
+      <label class="lbl" for="dateTargetMode">Apply to</label>
+      <div class="ctl">
+        <select id="dateTargetMode">
+          <option value="prefix">Columns matching a name prefix</option>
+          <option value="selected">Columns I pick below</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="prefixBlock">
+      <div class="row">
+        <label class="lbl" for="dateHeaderPrefix">Column prefix</label>
+        <div class="ctl"><input type="text" id="dateHeaderPrefix" placeholder="Week" /></div>
+      </div>
+      <div class="hint">Every column whose header starts with this and ends in a number gets a
+        label, and that number decides which period it is — so reordering columns can't scramble
+        the dates.</div>
+    </div>
+
+    <div id="selectBlock">
+      <div class="cp-tools">
+        <button type="button" id="cpNone">Clear all</button>
+        <button type="button" id="cpAuto">Auto-number from names</button>
+      </div>
+      <div id="colPickerEmpty" style="display:none">
+        No column list available — open this dialog from the ⚙ button on a sheet that already has
+        fields on the <b>Columns</b> shelf. You can still edit the mapping by hand below as
+        <code>{"Field Name": period}</code>.
+      </div>
+      <div id="colPicker"></div>
+      <input type="hidden" id="dateColumnMap" />
+      <input type="hidden" id="overallRangeCols" />
+      <textarea id="dateColumnMapText" style="display:none"></textarea>
+      <div class="hint">Tick the columns that represent a time period and give each its period
+        number. <b>1</b> is the period defined by “Week 1 is” above; <b>2</b> is one step earlier,
+        and <b>0</b> or negative numbers run the other way — handy for a “next week” column.</div>
+      <div class="hint">Tick <b>All</b> instead to show the overall span of every dated column under
+        that header — a <i>Total Change</i> column reading <i>6/28–8/8</i> while the period columns
+        beside it each show their own week. Those columns keep their own name.</div>
+    </div>
+    <div class="row">
+      <label class="lbl" for="weekDirection">Week 1 is</label>
+      <div class="ctl">
+        <select id="weekDirection">
+          <option value="back">the week ending on the through-date</option>
+          <option value="forward">the oldest week (last column = through-date)</option>
+          <option value="after">the first week after the through-date</option>
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <label class="lbl" for="weekLength">Days per column</label>
+      <div class="ctl"><input type="number" id="weekLength" min="1" max="90" step="1" /></div>
+    </div>
+    <div class="check"><input type="checkbox" id="usePeriodLabel" /><label for="usePeriodLabel">Rename the labelled columns by period</label></div>
+    <div class="row">
+      <label class="lbl" for="periodLabelTemplate">Period label</label>
+      <div class="ctl"><input type="text" id="periodLabelTemplate" placeholder="Week {n}" /></div>
+    </div>
+    <div class="check"><input type="checkbox" id="periodLabelNumber" /><label for="periodLabelNumber">Include the period number in that label</label></div>
+    <div class="hint">Untick to drop the number — every period column then reads just “Week”, with
+      the date range underneath telling them apart.</div>
+    <div class="hint">A labelled column's first line becomes this, with <code>{n}</code> replaced by
+      its period number — so a <i>CN Comp Days</i> column set to period 3 reads “Week 3” over
+      “Jul 18–24”. Anything you type into <b>Header overrides</b> above still wins.</div>
+
+    <div class="row">
+      <label class="lbl" for="dateHeaderStyle">Show as</label>
+      <div class="ctl">
+        <select id="dateHeaderStyle">
+          <option value="append">Second line under the header</option>
+          <option value="replace">Replace the header text</option>
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <label class="lbl" for="dateHeaderFormat">Format</label>
+      <div class="ctl">
+        <select id="dateHeaderFormat">
+          <option value="mmm-d-range">Aug 1–7</option>
+          <option value="mmm-d-both">Aug 1 – Aug 7</option>
+          <option value="m/d">8/1–8/7</option>
+          <option value="mm/dd">08/01 – 08/07</option>
+          <option value="mm/dd/yy">08/01/26 – 08/07/26</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= PDF ================= -->
+  <div class="panel" id="p-pdf">
+    <div class="check"><input type="checkbox" id="showPdf" /><label for="showPdf">Show the PDF button in the control bar</label></div>
+    <div class="hint">The PDF contains every filtered row across as many pages as it takes, with
+      column headers repeated and group bands preserved. Table colors, fonts, banding, row numbers
+      and date labels all carry over from the other tabs.</div>
+
+    <h3>Titling</h3>
+    <div class="row">
+      <label class="lbl" for="pdfTitle">Title</label>
+      <div class="ctl"><input type="text" id="pdfTitle" placeholder="defaults to the worksheet name" /></div>
+    </div>
+    <div class="row">
+      <label class="lbl" for="pdfNote">Note</label>
+      <div class="ctl"><input type="text" id="pdfNote" placeholder="appended to the subtitle line" /></div>
+    </div>
+    <div class="check"><input type="checkbox" id="pdfShowRowCount" /><label for="pdfShowRowCount">Row count in the subtitle</label></div>
+    <div class="row">
+      <label class="lbl" for="pdfRowWordPlural">Call them</label>
+      <div class="ctl two">
+        <input type="text" id="pdfRowWordPlural" placeholder="rows" />
+        <input type="text" id="pdfRowWord" placeholder="row" />
+      </div>
+    </div>
+    <div class="hint">Plural first, then the singular used when only one row survives the filters —
+      <i>368 homes</i>, <i>1 home</i>. Leave them as they are for the usual <i>rows</i>.</div>
+    <div class="check"><input type="checkbox" id="pdfRepeatTitle" /><label for="pdfRepeatTitle">Repeat the title block on every page</label></div>
+    <div class="check"><input type="checkbox" id="pdfPageNumbers" /><label for="pdfPageNumbers">Page X of Y in the footer</label></div>
+    <div class="check"><input type="checkbox" id="pdfTimestamp" /><label for="pdfTimestamp">Generated-on timestamp in the footer</label></div>
+    <div class="check"><input type="checkbox" id="pdfIncludeGroups" /><label for="pdfIncludeGroups">Group bands (and a "continued" note on carry-over pages)</label></div>
+
+    <h3>Header image</h3>
+    <div class="hint">A logo or banner drawn above the title on the PDF. The file is embedded in the
+      workbook, so it keeps working for anyone who opens the published view — pick something small.</div>
+    <div class="row">
+      <label class="lbl" for="pdfImageFile">Image file</label>
+      <div class="ctl"><input type="file" id="pdfImageFile" accept="image/png,image/jpeg,image/gif,image/webp" /></div>
+    </div>
+    <div id="imgState" class="hint">No image set.</div>
+    <div id="imgPreviewWrap" style="display:none"><img id="imgPreview" alt="" /></div>
+    <div class="row">
+      <label class="lbl" for="pdfImageHeight">Height (pt)</label>
+      <div class="ctl">
+        <input type="range" id="pdfImageHeight" min="12" max="140" step="2" />
+        <span class="rangeval" id="pdfImageHeightVal"></span>
+      </div>
+    </div>
+    <div class="row">
+      <label class="lbl" for="pdfImageAlign">Position</label>
+      <div class="ctl">
+        <select id="pdfImageAlign">
+          <option value="left">Left</option>
+          <option value="center">Centred</option>
+          <option value="right">Right</option>
+        </select>
+      </div>
+    </div>
+    <div class="check"><input type="checkbox" id="pdfImageRepeat" /><label for="pdfImageRepeat">Repeat the image on every page</label></div>
+    <div class="cp-tools"><button type="button" id="imgClear">Remove the image</button></div>
+    <input type="hidden" id="pdfImage" />
+    <input type="hidden" id="pdfImageAspect" />
+
+    <h3>Page setup</h3>
+    <div class="row">
+      <label class="lbl" for="pdfOrientation">Orientation</label>
+      <div class="ctl">
+        <select id="pdfOrientation">
+          <option value="landscape">Landscape</option>
+          <option value="portrait">Portrait</option>
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <label class="lbl" for="pdfPageSize">Paper</label>
+      <div class="ctl">
+        <select id="pdfPageSize">
+          <option value="letter">Letter</option>
+          <option value="legal">Legal</option>
+          <option value="tabloid">Tabloid (11×17)</option>
+          <option value="a4">A4</option>
+          <option value="a3">A3</option>
+        </select>
+      </div>
+    </div>
+    <div class="check"><input type="checkbox" id="pdfFontMatch" /><label for="pdfFontMatch">Use the table's font sizes</label></div>
+    <div class="hint">On, the sizes on the <b>Type</b> tab drive the PDF as well as the view —
+      pixels become points at 0.75, so 12px on screen prints at 9pt, and changing one changes both.
+      The two sliders below are then ignored. Off, the PDF keeps its own absolute sizes and the Type
+      tab affects only the view. Either way, per-column, band and group sizes keep their relative
+      emphasis, and the fit settings shrink everything to size if it will not fit the paper.</div>
+    <div class="row">
+      <label class="lbl" for="pdfFontSize">Body size</label>
+      <div class="ctl">
+        <input type="range" id="pdfFontSize" min="4" max="12" step="0.5" />
+        <span class="rangeval" id="pdfFontSizeVal"></span>
+      </div>
+    </div>
+    <div class="row">
+      <label class="lbl" for="pdfHeaderFontSize">Header size</label>
+      <div class="ctl">
+        <input type="range" id="pdfHeaderFontSize" min="4" max="14" step="0.5" />
+        <span class="rangeval" id="pdfHeaderFontSizeVal"></span>
+      </div>
+    </div>
+    <div class="row">
+      <label class="lbl" for="pdfMargin">Margin (pt)</label>
+      <div class="ctl">
+        <input type="range" id="pdfMargin" min="8" max="72" step="2" />
+        <span class="rangeval" id="pdfMarginVal"></span>
+      </div>
+    </div>
+    <div class="row">
+      <label class="lbl" for="pdfRowsMode">Rows per page</label>
+      <div class="ctl">
+        <select id="pdfRowsMode">
+          <option value="match">Match the table's rows per page</option>
+          <option value="fit">As many as the page holds</option>
+        </select>
+      </div>
+    </div>
+    <div class="hint">Matching means a printed page carries exactly the rows one on-screen page
+      carries, so the PDF and the view line up row for row. Choose the other option to pack each sheet
+      full instead, which uses less paper but no longer mirrors the view.</div>
+    <div class="check"><input type="checkbox" id="pdfFitWidth" /><label for="pdfFitWidth">Always fit the table to one page wide</label></div>
+    <div class="hint">On (recommended), the table is laid out once, measured, and if it runs past the
+      right margin the whole thing — type, padding and every column width — is scaled down by
+      exactly the overflow so it lands inside the page. The scale used is reported in the toast.
+      Off, wide tables spill off the edge of the paper.</div>
+    <div class="hint">Legal landscape is the default and fits roughly twice the columns of Letter
+      portrait. Tabloid is wider again if you need it. <b>Wrap long text in every column</b> and
+      <b>Max wrapped lines</b> on the Table tab both apply here: with wrapping off, a column that
+      does not fit is cut with an ellipsis on paper just as it is on screen.</div>
+  </div>
+
+  <!-- ================= RULES ================= -->
+  <div class="panel" id="p-rules">
+    <h3>Conditional formatting</h3>
+    <div class="hint">Rules run top to bottom over the cell values and stack, so a later rule can
+      override an earlier one. Numbers are read from the underlying value, falling back to the
+      displayed text with currency symbols, thousands separators, percent signs and
+      accounting-style parentheses handled. Dates compare chronologically.</div>
+    <div class="hint"><b>Compare to field</b> tests a cell against another column in the same row —
+      that's how you flag a date that has slipped past its scheduled counterpart.</div>
+    <div class="cp-tools">
+      <button type="button" id="ruleAdd">Add rule</button>
+      <button type="button" id="ruleNegRed">+ Negatives in red</button>
+      <button type="button" id="ruleClear">Clear all</button>
+    </div>
+    <div id="ruleList"></div>
+    <input type="hidden" id="cellRules" />
+    <div id="ruleEmpty" class="hint">No rules yet — every cell uses the plain body style.</div>
+  </div>
+
+  <!-- ================= TYPE ================= -->
+  <div class="panel" id="p-type">
+    <h3>Font</h3>
+    <div class="row">
+      <label class="lbl" for="fontFamily">Family</label>
+      <div class="ctl">
+        <select id="fontFamily">
+          <option value='-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'>System default</option>
+          <option value='"Segoe UI", Tahoma, sans-serif'>Segoe UI</option>
+          <option value='Helvetica, Arial, sans-serif'>Helvetica / Arial</option>
+          <option value='Verdana, Geneva, sans-serif'>Verdana</option>
+          <option value='"Trebuchet MS", sans-serif'>Trebuchet MS</option>
+          <option value='Tahoma, sans-serif'>Tahoma</option>
+          <option value='Georgia, "Times New Roman", serif'>Georgia</option>
+          <option value='"Times New Roman", Times, serif'>Times New Roman</option>
+          <option value='"Courier New", Courier, monospace'>Courier New</option>
+          <option value='ui-monospace, "SF Mono", Menlo, Consolas, monospace'>Monospace</option>
+        </select>
+      </div>
+    </div>
+    <div class="hint">Only fonts installed locally are used — Tableau Desktop blocks web-font downloads.</div>
+
+    <h3>Size &amp; weight</h3>
+    <div class="row">
+      <label class="lbl" for="bodySize">Body size</label>
+      <div class="ctl">
+        <input type="range" id="bodySize" min="8" max="20" step="1" />
+        <span class="rangeval" id="bodySizeVal"></span>
+      </div>
+    </div>
+    <div class="row">
+      <label class="lbl" for="headSize">Header size</label>
+      <div class="ctl">
+        <input type="range" id="headSize" min="8" max="22" step="1" />
+        <span class="rangeval" id="headSizeVal"></span>
+      </div>
+    </div>
+    <div class="row">
+      <label class="lbl" for="bandFontSize">Merged band size</label>
+      <div class="ctl">
+        <input type="range" id="bandFontSize" min="7" max="24" step="0.5" />
+        <span class="rangeval" id="bandFontSizeVal"></span>
+      </div>
+    </div>
+    <div class="row">
+      <label class="lbl" for="groupFontSize">Group band size</label>
+      <div class="ctl">
+        <input type="range" id="groupFontSize" min="7" max="24" step="0.5" />
+        <span class="rangeval" id="groupFontSizeVal"></span>
+      </div>
+    </div>
+    <div class="hint">Per-column font sizes live in the column list on the <b>Table</b> tab.</div>
+
+    <h3>Alignment</h3>
+    <div class="row">
+      <label class="lbl" for="headerAlign">Column headers</label>
+      <div class="ctl">
+        <select id="headerAlign">
+          <option value="center">Centred</option>
+          <option value="match">Match the column</option>
+          <option value="left">Always left</option>
+          <option value="right">Always right</option>
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <label class="lbl" for="headerVAlign">Header vertical</label>
+      <div class="ctl">
+        <select id="headerVAlign">
+          <option value="middle">Middle</option>
+          <option value="top">Top</option>
+          <option value="bottom">Bottom</option>
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <label class="lbl" for="bandVAlign">Merged band vertical</label>
+      <div class="ctl">
+        <select id="bandVAlign">
+          <option value="middle">Middle</option>
+          <option value="top">Top</option>
+          <option value="bottom">Bottom</option>
+        </select>
+      </div>
+    </div>
+    <div class="hint">Merged band alignment is on the <b>Headers</b> tab; per-column alignment is in
+      the column list on the <b>Table</b> tab.</div>
+
+    <h3>Size &amp; weight</h3>
+    <div class="row">
+      <label class="lbl" for="bodyWeight">Body weight</label>
+      <div class="ctl">
+        <select id="bodyWeight">
+          <option value="300">Light</option>
+          <option value="400">Normal</option>
+          <option value="500">Medium</option>
+          <option value="600">Semi-bold</option>
+          <option value="700">Bold</option>
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <label class="lbl" for="headWeight">Header weight</label>
+      <div class="ctl">
+        <select id="headWeight">
+          <option value="400">Normal</option>
+          <option value="500">Medium</option>
+          <option value="600">Semi-bold</option>
+          <option value="700">Bold</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= COLORS ================= -->
+  <div class="panel" id="p-color">
+    <h3>Presets</h3>
+    <div class="swatches" id="presets">
+      <button class="swatch" data-preset="light">Light</button>
+      <button class="swatch" data-preset="slate">Slate</button>
+      <button class="swatch" data-preset="green">Forest</button>
+      <button class="swatch" data-preset="mono">Mono print</button>
+      <button class="swatch" data-preset="dark">Dark</button>
+    </div>
+
+    <h3>Table</h3>
+    <div class="row"><label class="lbl" for="bg">Background</label><div class="ctl"><input type="color" id="bg" /></div></div>
+    <div class="row"><label class="lbl" for="text">Body text</label><div class="ctl"><input type="color" id="text" /></div></div>
+    <div class="row"><label class="lbl" for="band">Row shading</label><div class="ctl"><input type="color" id="band" /></div></div>
+    <div class="row"><label class="lbl" for="border">Gridlines</label><div class="ctl"><input type="color" id="border" /></div></div>
+    <div class="row">
+      <label class="lbl" for="borderWidth">Gridline width</label>
+      <div class="ctl">
+        <input type="range" id="borderWidth" min="0" max="4" step="0.5" />
+        <span class="rangeval" id="borderWidthVal"></span>
+      </div>
+    </div>
+    <div class="hint">Thickness of the rules between rows and columns, in pixels. Set it to 0 for no
+      gridlines at all. The line under the column headers is drawn at twice this weight, and the PDF
+      matches whatever you pick here.</div>
+    <div class="row"><label class="lbl" for="hover">Hover highlight</label><div class="ctl"><input type="color" id="hover" /></div></div>
+
+    <h3>Header row</h3>
+    <div class="row"><label class="lbl" for="headBg">Background</label><div class="ctl"><input type="color" id="headBg" /></div></div>
+    <div class="row"><label class="lbl" for="headText">Text</label><div class="ctl"><input type="color" id="headText" /></div></div>
+
+    <h3>Merged header bands</h3>
+    <div class="row"><label class="lbl" for="bandBg">Background</label><div class="ctl"><input type="color" id="bandBg" /></div></div>
+    <div class="row"><label class="lbl" for="bandText">Text</label><div class="ctl"><input type="color" id="bandText" /></div></div>
+
+    <h3>Group bands</h3>
+    <div class="row"><label class="lbl" for="groupBg">Background</label><div class="ctl"><input type="color" id="groupBg" /></div></div>
+    <div class="row"><label class="lbl" for="groupText">Text</label><div class="ctl"><input type="color" id="groupText" /></div></div>
+
+    <h3>Accent</h3>
+    <div class="row"><label class="lbl" for="accent">Active page / sort</label><div class="ctl"><input type="color" id="accent" /></div></div>
+  </div>
+</div>
+
+<div id="footer">
+  <button class="link" id="btnReset">Reset to defaults</button>
+  <span class="spacer"></span>
+  <button id="btnCancel">Cancel</button>
+  <button class="primary" id="btnApply">Apply</button>
+</div>
+
+<!-- Same-origin, synchronous: see the note in index.html. -->
+<script src="tableau.extensions.1.latest.min.js"></script>
+
+<script>
+(function () {
+  'use strict';
+
+  function apiReady() {
+    return typeof tableau !== 'undefined' && tableau && tableau.extensions &&
+           !!tableau.extensions.initializeDialogAsync;
+  }
+
+  var DEFAULTS = {
+    rowsPerPage: 25,
+    rowsPerPageOptions: '10,25,50,100,250',
+    barPosition: 'bottom',
+    showNumberedPages: true,
+    numberedWindow: 7,
+    showJump: true,
+    showRowsPerPage: true,
+    showTotals: true,
+    showSearch: true,
+    showExport: true,
+    showRowNumbers: false,
+    showGroupBands: true,
+    repeatGroupHeader: true,
+    showGroupCounts: true,
+    groupPrefix: '',
+    allowSort: true,
+    showSortCaret: false,
+    sortLevels: '[{"field":"#group","dir":"asc"}]',
+    groupSortFirst: true,
+    selectOnClick: false,
+    wrapText: false,
+    maxLines: 0,
+    columnWidths: '{}',
+    columnAligns: '{}',
+    columnFontSizes: '{}',
+    headerAlign: 'center',
+    nullDisplay: 'blank',
+    nullText: '',
+    freezeCols: 0,
+    banding: true,
+    headerLabels: '',
+    headerNames: '{}',
+    hiddenHeaders: '[]',
+    dateHeaders: false,
+    dateParamName: 'Enter Through Week Ended Date',
+    dateTargetMode: 'prefix',
+    dateHeaderPrefix: 'Week',
+    dateColumnMap: '{}',
+    showHeaderBands: true,
+    headerBands: '{}',
+    bandAlign: 'center',
+    bandFontSize: 12,
+    groupFontSize: 12,
+    bandFitColumns: true,
+    bandWrap: true,
+    bandSpanUnbanded: true,
+    spanHeaderTop: true,
+    headerVAlign: 'middle',
+    bandVAlign: 'middle',
+    bandDividers: true,
+    dividerCols: '[]',
+    dividerColor: '#c3ccd9',
+    dividerWidth: 2,
+    cellRules: '[]',
+    bandDateRange: true,
+    bandDateStyle: 'stack',
+    bandBg: '#dde6f2',
+    bandText: '#1f2937',
+    overallRangeCols: '[]',
+    usePeriodLabel: true,
+    periodLabelTemplate: 'Week {n}',
+    periodLabelNumber: true,
+    dateHeaderStyle: 'append',
+    dateHeaderFormat: 'mmm-d-range',
+    weekDirection: 'back',
+    weekLength: 7,
+    dateAnchorFallback: '',
+    showPdf: true,
+    pdfTitle: '',
+    pdfNote: '',
+    pdfOrientation: 'landscape',
+    pdfPageSize: 'legal',
+    pdfFitWidth: true,
+    pdfRowsMode: 'match',
+    pdfFontMatch: true,
+    pdfShowRowCount: true,
+    pdfRowWord: 'row',
+    pdfRowWordPlural: 'rows',
+    pdfImage: '',
+    pdfImageAspect: 0,
+    pdfImageHeight: 40,
+    pdfImageAlign: 'left',
+    pdfImageRepeat: true,
+    pdfFontSize: 7,
+    pdfHeaderFontSize: 7,
+    pdfIncludeGroups: true,
+    pdfPageNumbers: true,
+    pdfTimestamp: true,
+    pdfRepeatTitle: true,
+    pdfMargin: 24,
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+    bodySize: 12,
+    headSize: 12,
+    bodyWeight: 400,
+    headWeight: 600,
+    rowPad: 4,
+    colMin: 70,
+    bg: '#ffffff',
+    text: '#1f2937',
+    headBg: '#f3f4f6',
+    headText: '#111827',
+    band: '#f4f6f9',
+    border: '#e5e7eb',
+    borderWidth: 1,
+    hover: '#eef2ff',
+    groupBg: '#e8edf5',
+    groupText: '#1f2937',
+    accent: '#2f6f4e'
+  };
+
+  var PRESETS = {
+    light: { bg: '#ffffff', text: '#1f2937', headBg: '#f3f4f6', headText: '#111827', band: '#f4f6f9', border: '#e5e7eb', hover: '#eef2ff', groupBg: '#e8edf5', groupText: '#1f2937', accent: '#2f6f4e', bandBg: '#dde6f2', bandText: '#1f2937' },
+    slate: { bg: '#ffffff', text: '#1e293b', headBg: '#334155', headText: '#f8fafc', band: '#f1f5f9', border: '#cbd5e1', hover: '#e2e8f0', groupBg: '#dbe3ec', groupText: '#0f172a', accent: '#334155', bandBg: '#1e293b', bandText: '#f8fafc' },
+    green: { bg: '#ffffff', text: '#14342a', headBg: '#2f6f4e', headText: '#ffffff', band: '#f0f7f3', border: '#d5e5db', hover: '#e2f0e8', groupBg: '#dcebe2', groupText: '#14342a', accent: '#2f6f4e', bandBg: '#1f4d36', bandText: '#ffffff' },
+    mono:  { bg: '#ffffff', text: '#000000', headBg: '#ffffff', headText: '#000000', band: '#ffffff', border: '#000000', hover: '#f2f2f2', groupBg: '#e6e6e6', groupText: '#000000', accent: '#000000', bandBg: '#d9d9d9', bandText: '#000000' },
+    dark:  { bg: '#14181f', text: '#e5e7eb', headBg: '#1f2733', headText: '#f9fafb', band: '#1a2029', border: '#313b49', hover: '#26303d', groupBg: '#25303f', groupText: '#f9fafb', accent: '#5eead4', bandBg: '#2b3646', bandText: '#f9fafb' }
+  };
+
+  var RANGES = ['numberedWindow', 'freezeCols', 'colMin', 'rowPad', 'bodySize', 'headSize',
+                'pdfFontSize', 'pdfHeaderFontSize', 'pdfMargin', 'dividerWidth', 'borderWidth', 'maxLines',
+                'bandFontSize', 'groupFontSize', 'pdfImageHeight'];
+
+  function $(id) { return document.getElementById(id); }
+
+  function setForm(vals) {
+    Object.keys(DEFAULTS).forEach(function (k) {
+      var e = $(k);
+      if (!e) return;
+      var v = vals[k];
+      if (v === undefined || v === '') v = DEFAULTS[k];
+      if (e.type === 'checkbox') e.checked = (v === true || v === 'true');
+      else e.value = v;
+    });
+    RANGES.forEach(syncRange);
+  }
+
+  function syncRange(k) {
+    var e = $(k), out = $(k + 'Val');
+    if (e && out) out.textContent = e.value;
+  }
+
+  function collect() {
+    var out = {};
+    Object.keys(DEFAULTS).forEach(function (k) {
+      var e = $(k);
+      if (!e) { out[k] = DEFAULTS[k]; return; }
+      out[k] = (e.type === 'checkbox') ? e.checked : e.value;
+    });
+    return out;
+  }
+
+  /* ===================================================================
+     Per-column date-label picker
+
+     The column list arrives as the displayDialogAsync payload; the dialog has
+     no worksheet access of its own. Selections are stored as a JSON object
+     keyed by FIELD name (stable across header overrides and reordering) in the
+     hidden #dateColumnMap input, which the generic collect() then saves.
+     =================================================================== */
+  var payloadCols = null;   // [{field, label, isNumeric}] or null
+  var payloadAnchor = '';
+
+  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  function readMap() {
+    try {
+      var o = JSON.parse($('dateColumnMap').value || '{}');
+      return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {};
+    } catch (e) { return {}; }
+  }
+
+  function writeMap(map) {
+    var json = JSON.stringify(map);
+    $('dateColumnMap').value = json;
+    if ($('dateColumnMapText').style.display !== 'none') $('dateColumnMapText').value = json;
+  }
+
+  function readOverall() {
+    try {
+      var a = JSON.parse($('overallRangeCols').value || '[]');
+      return Array.isArray(a) ? a.map(String) : [];
+    } catch (e) { return []; }
+  }
+
+  function writeOverall(list) {
+    $('overallRangeCols').value = JSON.stringify(list);
+  }
+
+  function parseAnchor() {
+    var t = String(payloadAnchor || $('dateAnchorFallback').value || '').trim();
+    var m = t.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+    if (m) {
+      var y = +m[3]; if (y < 100) y += y < 70 ? 2000 : 1900;
+      return new Date(y, +m[1] - 1, +m[2], 12);
+    }
+    var iso = t.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (iso) return new Date(+iso[1], +iso[2] - 1, +iso[3], 12);
+    var d = new Date(t);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  // Mirrors formatRange in index.html so previews match what the table renders.
+  function fmtOne(d, style) {
+    var mm = ('0' + (d.getMonth() + 1)).slice(-2);
+    var dd = ('0' + d.getDate()).slice(-2);
+    if (style === 'mm/dd/yy') return mm + '/' + dd + '/' + String(d.getFullYear()).slice(-2);
+    if (style === 'mm/dd') return mm + '/' + dd;
+    if (style === 'm/d') return (d.getMonth() + 1) + '/' + d.getDate();
+    return MONTHS[d.getMonth()] + ' ' + d.getDate();
+  }
+
+  function fmtSpan(start, end) {
+    var style = $('dateHeaderFormat') ? $('dateHeaderFormat').value : 'mmm-d-range';
+    var dash = '\u2013';
+    if (style === 'm/d') return fmtOne(start, 'm/d') + dash + fmtOne(end, 'm/d');
+    if (style === 'mm/dd') return fmtOne(start, 'mm/dd') + ' ' + dash + ' ' + fmtOne(end, 'mm/dd');
+    if (style === 'mm/dd/yy') return fmtOne(start, 'mm/dd/yy') + ' ' + dash + ' ' + fmtOne(end, 'mm/dd/yy');
+    if (style === 'mmm-d-both') return fmtOne(start, 'mmm') + ' ' + dash + ' ' + fmtOne(end, 'mmm');
+    if (start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()) {
+      return MONTHS[start.getMonth()] + ' ' + start.getDate() + dash + end.getDate();
+    }
+    return fmtOne(start, 'mmm') + ' ' + dash + ' ' + fmtOne(end, 'mmm');
+  }
+
+  // Mirrors the range maths in index.html so the picker can preview real dates.
+  function previewRange(n, maxN) {
+    var anchor = parseAnchor();
+    if (!anchor || isNaN(n)) return '';
+    var len = Math.max(1, parseInt($('weekLength').value, 10) || 7);
+    var dir = $('weekDirection').value;
+    var end = new Date(anchor.getTime());
+    if (dir === 'forward') end.setDate(end.getDate() - (maxN - n) * len);
+    else if (dir === 'after') end.setDate(end.getDate() + n * len);
+    else end.setDate(end.getDate() - (n - 1) * len);
+    var start = new Date(end.getTime());
+    start.setDate(start.getDate() - (len - 1));
+    return fmtSpan(start, end);
+  }
+
+  function periodLabelText(n) {
+    var t = $('periodLabelTemplate').value || 'Week {n}';
+    if (t.indexOf('{n}') !== -1) return t.replace(/\{n\}/g, n);
+    return (t.trim() + ' ' + n).trim();
+  }
+
+  // Min start / max end across every period column currently ticked.
+  function overallSpanText(maxN) {
+    var map = readMap();
+    var anchor = parseAnchor();
+    if (!anchor) return '';
+    var nums = Object.keys(map).map(function (k) { return parseInt(map[k], 10); })
+      .filter(function (v) { return !isNaN(v); });
+    if (!nums.length) return '';
+    var len = Math.max(1, parseInt($('weekLength').value, 10) || 7);
+    var dir = $('weekDirection').value;
+    var min = null, max = null;
+    nums.forEach(function (n) {
+      var end = new Date(anchor.getTime());
+      if (dir === 'forward') end.setDate(end.getDate() - (maxN - n) * len);
+      else if (dir === 'after') end.setDate(end.getDate() + n * len);
+      else end.setDate(end.getDate() - (n - 1) * len);
+      var start = new Date(end.getTime());
+      start.setDate(start.getDate() - (len - 1));
+      if (!min || start < min) min = start;
+      if (!max || end > max) max = end;
+    });
+    if (!min || !max) return '';
+    return fmtSpan(min, max);
+  }
+
+  function refreshPreviews() {
+    var map = readMap();
+    var vals = Object.keys(map).map(function (k) { return parseInt(map[k], 10); })
+      .filter(function (v) { return !isNaN(v); });
+    var maxN = vals.length ? Math.max.apply(null, vals) : 1;
+    Array.prototype.forEach.call(document.querySelectorAll('#colPicker .cp-row'), function (row) {
+      var num = row.querySelector('input[type="number"]');
+      var box = row.querySelector('input[type="checkbox"]');
+      var all = row.querySelector('input.cp-all');
+      var prev = row.querySelector('.cp-prev');
+      var isAll = all && all.checked;
+      row.classList.toggle('on', box.checked || isAll);
+      num.disabled = !box.checked || isAll;
+      prev.innerHTML = '';
+
+      if (isAll) {
+        var span = overallSpanText(maxN);
+        var l0 = document.createElement('span');
+        l0.textContent = span || '(no dated columns yet)';
+        prev.appendChild(l0);
+        return;
+      }
+      if (!box.checked) return;
+      var n = parseInt(num.value, 10);
+      if ($('usePeriodLabel').checked && $('dateHeaderStyle').value !== 'replace' && !isNaN(n)) {
+        var l1 = document.createElement('span');
+        l1.className = 'cp-l1';
+        l1.textContent = periodLabelText(n);
+        prev.appendChild(l1);
+      }
+      var l2 = document.createElement('span');
+      l2.textContent = previewRange(n, maxN);
+      prev.appendChild(l2);
+    });
+  }
+
+  function buildPicker() {
+    var host = $('colPicker');
+    host.innerHTML = '';
+    if (!payloadCols || !payloadCols.length) {
+      $('colPickerEmpty').style.display = '';
+      host.style.display = 'none';
+      $('dateColumnMapText').style.display = '';
+      $('dateColumnMapText').value = $('dateColumnMap').value || '{}';
+      return;
+    }
+    $('colPickerEmpty').style.display = 'none';
+    $('dateColumnMapText').style.display = 'none';
+    host.style.display = '';
+
+    var head = document.createElement('div');
+    head.className = 'cp-head';
+    head.innerHTML = '<span style="flex:0 0 14px"></span>' +
+      '<span class="cp-name">Column</span><span class="cp-n">Period</span>' +
+      '<span class="cp-all">All</span><span class="cp-p">Label</span>';
+    host.appendChild(head);
+
+    var map = readMap();
+
+    payloadCols.forEach(function (c) {
+      var row = document.createElement('div');
+      row.className = 'cp-row';
+
+      var box = document.createElement('input');
+      box.type = 'checkbox';
+      box.checked = Object.prototype.hasOwnProperty.call(map, c.field);
+
+      var name = document.createElement('span');
+      name.className = 'cp-name';
+      name.textContent = c.label;
+      name.title = c.field;
+      if (c.isNumeric) {
+        var tag = document.createElement('span');
+        tag.className = 'cp-meas';
+        tag.textContent = 'measure';
+        name.appendChild(tag);
+      }
+
+      var num = document.createElement('input');
+      num.type = 'number';
+      num.step = '1';
+      num.value = box.checked ? map[c.field] : (guessPeriod(c.label) || '');
+
+      var all = document.createElement('input');
+      all.type = 'checkbox';
+      all.className = 'cp-all';
+      all.title = 'Show the overall span of all dated columns under this header';
+      all.checked = readOverall().indexOf(c.field) !== -1;
+
+      var prev = document.createElement('span');
+      prev.className = 'cp-prev';
+
+      function sync() {
+        var m = readMap();
+        if (box.checked) {
+          if (num.value === '') num.value = guessPeriod(c.label) || 1;
+          m[c.field] = parseInt(num.value, 10);
+        } else {
+          delete m[c.field];
+        }
+        writeMap(m);
+
+        var list = readOverall().filter(function (f) { return f !== c.field; });
+        if (all.checked) list.push(c.field);
+        writeOverall(list);
+
+        refreshPreviews();
+      }
+      box.addEventListener('change', sync);
+      num.addEventListener('input', sync);
+      all.addEventListener('change', sync);
+
+      row.appendChild(box);
+      row.appendChild(name);
+      row.appendChild(num);
+      row.appendChild(all);
+      row.appendChild(prev);
+      host.appendChild(row);
+    });
+
+    refreshPreviews();
+  }
+
+  function guessPeriod(label) {
+    var m = String(label || '').match(/(\d+)\s*$/);
+    return m ? parseInt(m[1], 10) : null;
+  }
+
+  /* ---- header name / hide picker ---------------------------------- */
+  function readNames() {
+    try {
+      var o = JSON.parse($('headerNames').value || '{}');
+      return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {};
+    } catch (e) { return {}; }
+  }
+
+  function writeNames(map) {
+    var json = JSON.stringify(map);
+    $('headerNames').value = json;
+    if ($('headerNamesText').style.display !== 'none') $('headerNamesText').value = json;
+  }
+
+  function readHidden() {
+    try {
+      var a = JSON.parse($('hiddenHeaders').value || '[]');
+      return Array.isArray(a) ? a.map(String) : [];
+    } catch (e) { return []; }
+  }
+
+  function writeHidden(list) { $('hiddenHeaders').value = JSON.stringify(list); }
+
+  // One-time migration: fold a legacy positional headerLabels list into the
+  // per-field map, then clear it so there is a single source of truth.
+  function migrateLegacyLabels() {
+    var legacy = String($('headerLabels').value || '').trim();
+    if (!legacy || !payloadCols) return;
+    var map = readNames();
+    if (Object.keys(map).length) { $('headerLabels').value = ''; return; }
+    legacy.split(',').forEach(function (txt, i) {
+      var t = txt.trim();
+      if (t && payloadCols[i]) map[payloadCols[i].field] = t;
+    });
+    writeNames(map);
+    $('headerLabels').value = '';
+  }
+
+  function buildNamePicker() {
+    var host = $('namePicker');
+    host.innerHTML = '';
+    migrateLegacyLabels();
+
+    if (!payloadCols || !payloadCols.length) {
+      $('namePickerEmpty').style.display = '';
+      host.style.display = 'none';
+      $('headerNamesText').style.display = '';
+      $('headerNamesText').value = $('headerNames').value || '{}';
+      return;
+    }
+    $('namePickerEmpty').style.display = 'none';
+    $('headerNamesText').style.display = 'none';
+    host.style.display = '';
+
+    var head = document.createElement('div');
+    head.className = 'cp-head';
+    head.innerHTML = '<span class="cp-name">Column</span>' +
+      '<span class="cp-band">Header text</span><span class="cp-all">Hide</span>';
+    host.appendChild(head);
+
+    var map = readNames();
+    var hidden = readHidden();
+
+    payloadCols.forEach(function (c) {
+      var row = document.createElement('div');
+      row.className = 'cp-row';
+
+      var name = document.createElement('span');
+      name.className = 'cp-name';
+      name.textContent = c.field;
+      name.title = c.field;
+
+      var txt = document.createElement('input');
+      txt.type = 'text';
+      txt.className = 'cp-band';
+      txt.placeholder = c.label || c.field;
+      txt.value = map[c.field] || '';
+
+      var hide = document.createElement('input');
+      hide.type = 'checkbox';
+      hide.className = 'cp-all';
+      hide.checked = hidden.indexOf(c.field) !== -1;
+      hide.title = 'Blank this column\u2019s header cell';
+
+      function sync() {
+        var m = readNames();
+        if (txt.value.trim()) m[c.field] = txt.value.trim();
+        else delete m[c.field];
+        writeNames(m);
+
+        var h = readHidden().filter(function (f) { return f !== c.field; });
+        if (hide.checked) h.push(c.field);
+        writeHidden(h);
+
+        txt.disabled = hide.checked;
+        row.classList.toggle('on', !!txt.value.trim() || hide.checked);
+      }
+      txt.addEventListener('input', sync);
+      hide.addEventListener('change', sync);
+      txt.disabled = hide.checked;
+      row.classList.toggle('on', !!txt.value.trim() || hide.checked);
+
+      row.appendChild(name);
+      row.appendChild(txt);
+      row.appendChild(hide);
+      host.appendChild(row);
+    });
+  }
+
+  /* ---- merged band picker ---------------------------------------- */
+  function readBands() {
+    try {
+      var o = JSON.parse($('headerBands').value || '{}');
+      return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {};
+    } catch (e) { return {}; }
+  }
+
+  function writeBands(map) {
+    var json = JSON.stringify(map);
+    $('headerBands').value = json;
+    if ($('headerBandsText').style.display !== 'none') $('headerBandsText').value = json;
+    summariseBands();
+  }
+
+  // Mirrors the merge rule in index.html: adjacent equal names collapse.
+  function summariseBands() {
+    var out = $('bandSummary');
+    if (!payloadCols || !payloadCols.length) { out.textContent = ''; return; }
+    var map = readBands();
+    var runs = [];
+    payloadCols.forEach(function (c) {
+      var label = (map[c.field] === undefined || map[c.field] === null) ? '' : String(map[c.field]).trim();
+      var last = runs[runs.length - 1];
+      if (last && last.label === label) last.count++;
+      else runs.push({ label: label, count: 1 });
+    });
+    var named = runs.filter(function (r) { return r.label !== ''; });
+    out.textContent = named.length
+      ? 'Merges into: ' + named.map(function (r) {
+          return r.label + ' (' + r.count + (r.count === 1 ? ' col' : ' cols') + ')';
+        }).join('  \u00b7  ')
+      : 'No bands yet — type a name next to the columns that belong together.';
+  }
+
+  function buildBandPicker() {
+    var host = $('bandPicker');
+    host.innerHTML = '';
+    if (!payloadCols || !payloadCols.length) {
+      $('bandPickerEmpty').style.display = '';
+      host.style.display = 'none';
+      $('headerBandsText').style.display = '';
+      $('headerBandsText').value = $('headerBands').value || '{}';
+      summariseBands();
+      return;
+    }
+    $('bandPickerEmpty').style.display = 'none';
+    $('headerBandsText').style.display = 'none';
+    host.style.display = '';
+
+    var head = document.createElement('div');
+    head.className = 'cp-head';
+    head.innerHTML = '<span class="cp-name">Column</span><span class="cp-band">Band name</span>';
+    host.appendChild(head);
+
+    var map = readBands();
+    payloadCols.forEach(function (c) {
+      var row = document.createElement('div');
+      row.className = 'cp-row';
+
+      var name = document.createElement('span');
+      name.className = 'cp-name';
+      name.textContent = c.label;
+      name.title = c.field;
+
+      var txt = document.createElement('input');
+      txt.type = 'text';
+      txt.className = 'cp-band';
+      txt.placeholder = '—';
+      txt.value = map[c.field] || '';
+      txt.addEventListener('input', function () {
+        var m = readBands();
+        if (txt.value.trim()) m[c.field] = txt.value.trim();
+        else delete m[c.field];
+        writeBands(m);
+        row.classList.toggle('on', !!txt.value.trim());
+      });
+      row.classList.toggle('on', !!txt.value.trim());
+
+      row.appendChild(name);
+      row.appendChild(txt);
+      host.appendChild(row);
+    });
+    summariseBands();
+  }
+
+  /* ===================================================================
+     Conditional-formatting rule builder
+     =================================================================== */
+  var OPS = [
+    ['negative', 'is negative  (< 0)'],
+    ['positive', 'is positive  (> 0)'],
+    ['zero', 'is zero  (= 0)'],
+    ['nonzero', 'is not zero  (\u2260 0)'],
+    ['gt', '>   greater than'],
+    ['gte', '\u2265   greater than or equal to'],
+    ['lt', '<   less than'],
+    ['lte', '\u2264   less than or equal to'],
+    ['eq', '=   equals'],
+    ['neq', '\u2260   does not equal'],
+    ['between', 'is between'],
+    ['outside', 'is outside'],
+    ['contains', 'text contains'],
+    ['textis', 'text is'],
+    ['blank', 'is blank'],
+    ['notblank', 'is not blank']
+  ];
+  var OPS_ONE_VALUE = ['gt', 'gte', 'lt', 'lte', 'eq', 'neq', 'contains', 'textis'];
+  var OPS_TWO_VALUES = ['between', 'outside'];
+
+  function readRules() {
+    try {
+      var a = JSON.parse($('cellRules').value || '[]');
+      return Array.isArray(a) ? a : [];
+    } catch (e) { return []; }
+  }
+
+  function writeRules(list) {
+    $('cellRules').value = JSON.stringify(list);
+    $('ruleEmpty').style.display = list.length ? 'none' : '';
+  }
+
+  function opt(value, text, selected) {
+    var o = document.createElement('option');
+    o.value = value; o.textContent = text;
+    if (selected) o.selected = true;
+    return o;
+  }
+
+  function buildRules() {
+    var host = $('ruleList');
+    host.innerHTML = '';
+    var rules = readRules();
+    $('ruleEmpty').style.display = rules.length ? 'none' : '';
+
+    rules.forEach(function (rule, idx) {
+      var card = document.createElement('div');
+      card.className = 'rule';
+
+      // ---- line 1: what to match ----
+      var l1 = document.createElement('div');
+      l1.className = 'rule-line';
+
+      var target = document.createElement('select');
+      target.appendChild(opt('*', 'All columns', rule.target === '*'));
+      target.appendChild(opt('#numeric', 'All numeric columns', rule.target === '#numeric'));
+      (payloadCols || []).forEach(function (c) {
+        target.appendChild(opt(c.field, c.label, rule.target === c.field));
+      });
+      if (!payloadCols && rule.target && rule.target !== '*' && rule.target !== '#numeric') {
+        target.appendChild(opt(rule.target, rule.target, true));
+      }
+
+      var op = document.createElement('select');
+      OPS.forEach(function (o) { op.appendChild(opt(o[0], o[1], rule.op === o[0])); });
+
+      l1.appendChild(target); l1.appendChild(op);
+
+      // ---- line 2: the value(s) being compared against ----
+      var lv = document.createElement('div');
+      lv.className = 'rule-line';
+
+      var vmode = document.createElement('select');
+      vmode.appendChild(opt('value', 'Compare to value', rule.v1mode !== 'field'));
+      vmode.appendChild(opt('field', 'Compare to field', rule.v1mode === 'field'));
+
+      var v1 = document.createElement('input');
+      v1.type = 'text'; v1.className = 'rv'; v1.value = rule.v1 || ''; v1.placeholder = 'value';
+
+      var v1f = document.createElement('select');
+      v1f.className = 'rvf';
+      (payloadCols || []).forEach(function (c) {
+        v1f.appendChild(opt(c.field, c.label, rule.v1field === c.field));
+      });
+      if (!payloadCols && rule.v1field) v1f.appendChild(opt(rule.v1field, rule.v1field, true));
+      if (!v1f.options.length) v1f.appendChild(opt('', '(no columns)', true));
+
+      var v2 = document.createElement('input');
+      v2.type = 'text'; v2.className = 'rv'; v2.value = rule.v2 || ''; v2.placeholder = 'and';
+
+      function syncValueBoxes() {
+        var o = op.value;
+        var needsOne = OPS_ONE_VALUE.indexOf(o) !== -1 || OPS_TWO_VALUES.indexOf(o) !== -1;
+        var byField = vmode.value === 'field';
+        lv.style.display = needsOne ? '' : 'none';
+        v1.style.display = needsOne && !byField ? '' : 'none';
+        v1f.style.display = needsOne && byField ? '' : 'none';
+        // A field comparison covers one operand, so the two-value forms stay
+        // on typed numbers for their upper bound.
+        v2.style.display = (OPS_TWO_VALUES.indexOf(o) !== -1 && !byField) ? '' : 'none';
+      }
+
+      lv.appendChild(vmode); lv.appendChild(v1); lv.appendChild(v1f); lv.appendChild(v2);
+      syncValueBoxes();
+
+      // ---- line 2: what to apply ----
+      var l2 = document.createElement('div');
+      l2.className = 'rule-line';
+
+      var weight = document.createElement('select');
+      weight.appendChild(opt('keep', 'Weight: keep', rule.weight === 'keep' || !rule.weight));
+      weight.appendChild(opt('bold', 'Bold', rule.weight === 'bold'));
+      weight.appendChild(opt('normal', 'Regular', rule.weight === 'normal'));
+
+      var italic = document.createElement('select');
+      italic.appendChild(opt('keep', 'Style: keep', rule.italic === 'keep' || !rule.italic));
+      italic.appendChild(opt('italic', 'Italic', rule.italic === 'italic'));
+      italic.appendChild(opt('normal', 'Upright', rule.italic === 'normal'));
+
+      var cLab = document.createElement('label');
+      var cChk = document.createElement('input');
+      cChk.type = 'checkbox'; cChk.checked = !!rule.useColor;
+      var cVal = document.createElement('input');
+      cVal.type = 'color'; cVal.value = rule.color || '#b91c1c';
+      cLab.appendChild(cChk); cLab.appendChild(document.createTextNode('Text'));
+
+      var bLab = document.createElement('label');
+      var bChk = document.createElement('input');
+      bChk.type = 'checkbox'; bChk.checked = !!rule.useBg;
+      var bVal = document.createElement('input');
+      bVal.type = 'color'; bVal.value = rule.bg || '#fee2e2';
+      bLab.appendChild(bChk); bLab.appendChild(document.createTextNode('Fill'));
+
+      var del = document.createElement('button');
+      del.type = 'button'; del.className = 'rule-del'; del.textContent = 'Remove';
+
+      l2.appendChild(weight); l2.appendChild(italic);
+      l2.appendChild(cLab); l2.appendChild(cVal);
+      l2.appendChild(bLab); l2.appendChild(bVal);
+      l2.appendChild(del);
+
+      function save() {
+        var list = readRules();
+        list[idx] = {
+          target: target.value,
+          op: op.value,
+          v1mode: vmode.value,
+          v1field: v1f.value,
+          v1: v1.value,
+          v2: v2.value,
+          weight: weight.value,
+          italic: italic.value,
+          useColor: cChk.checked,
+          color: cVal.value,
+          useBg: bChk.checked,
+          bg: bVal.value
+        };
+        writeRules(list);
+      }
+      [target, op, vmode, v1, v1f, v2, weight, italic, cChk, cVal, bChk, bVal].forEach(function (e) {
+        e.addEventListener('change', function () { syncValueBoxes(); save(); });
+        if (e.tagName === 'INPUT' && e.type === 'text') e.addEventListener('input', save);
+      });
+      del.addEventListener('click', function () {
+        var list = readRules();
+        list.splice(idx, 1);
+        writeRules(list);
+        buildRules();
+      });
+
+      card.appendChild(l1);
+      card.appendChild(lv);
+      card.appendChild(l2);
+      host.appendChild(card);
+    });
+  }
+
+  function addRule(rule) {
+    var list = readRules();
+    list.push(rule || {
+      target: '#numeric', op: 'negative', v1mode: 'value', v1field: '', v1: '', v2: '',
+      weight: 'keep', italic: 'keep',
+      useColor: true, color: '#b91c1c', useBg: false, bg: '#fee2e2'
+    });
+    writeRules(list);
+    buildRules();
+  }
+
+  /* ---- column width picker ----------------------------------------- */
+  function readWidths() {
+    try {
+      var o = JSON.parse($('columnWidths').value || '{}');
+      return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {};
+    } catch (e) { return {}; }
+  }
+
+  function writeWidths(map) {
+    var json = JSON.stringify(map);
+    $('columnWidths').value = json;
+    if ($('columnWidthsText').style.display !== 'none') $('columnWidthsText').value = json;
+  }
+
+  function readSizes() {
+    try {
+      var o = JSON.parse($('columnFontSizes').value || '{}');
+      return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {};
+    } catch (e) { return {}; }
+  }
+  function writeSizes(m) { $('columnFontSizes').value = JSON.stringify(m); }
+
+  function readAligns() {
+    try {
+      var o = JSON.parse($('columnAligns').value || '{}');
+      return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {};
+    } catch (e) { return {}; }
+  }
+  function writeAligns(m) { $('columnAligns').value = JSON.stringify(m); }
+
+  /* Per-column divider lines. A list of FIELD names; the extension draws a
+     vertical rule down the full table to the LEFT of each one, on top of
+     whatever band boundaries are already drawn. */
+  function readDividers() {
+    try {
+      var a = JSON.parse($('dividerCols').value || '[]');
+      return Array.isArray(a) ? a : [];
+    } catch (e) { return []; }
+  }
+  function writeDividers(list) { $('dividerCols').value = JSON.stringify(list); }
+
+  function buildWidthPicker() {
+    var host = $('widthPicker');
+    host.innerHTML = '';
+    if (!payloadCols || !payloadCols.length) {
+      $('widthPickerEmpty').style.display = '';
+      host.style.display = 'none';
+      $('columnWidthsText').style.display = '';
+      $('columnWidthsText').value = $('columnWidths').value || '{}';
+      return;
+    }
+    $('widthPickerEmpty').style.display = 'none';
+    $('columnWidthsText').style.display = 'none';
+    host.style.display = '';
+
+    var head = document.createElement('div');
+    head.className = 'cp-head';
+    head.innerHTML = '<span class="cp-name">Column</span><span class="cp-w">Width</span>' +
+      '<span class="cp-w">Size</span><span class="cp-align">Align</span>' +
+      '<span class="cp-div" title="Draw a divider line to the left of this column">Div</span>';
+    host.appendChild(head);
+
+    var map = readWidths();
+    var sizes = readSizes();
+    var aligns = readAligns();
+    var divs = readDividers();
+    payloadCols.forEach(function (c) {
+      var row = document.createElement('div');
+      row.className = 'cp-row';
+
+      var name = document.createElement('span');
+      name.className = 'cp-name';
+      name.textContent = c.label;
+      name.title = c.field;
+
+      var w = document.createElement('input');
+      w.type = 'number';
+      w.className = 'cp-w';
+      w.min = '20'; w.max = '900'; w.step = '5';
+      w.placeholder = 'auto';
+      w.value = map[c.field] || '';
+      var fs = document.createElement('input');
+      fs.type = 'number';
+      fs.className = 'cp-w';
+      fs.min = '6'; fs.max = '40'; fs.step = '0.5';
+      fs.placeholder = 'auto';
+      fs.title = 'Font size for this column, in pixels';
+      fs.value = sizes[c.field] || '';
+
+      var al = document.createElement('select');
+      al.className = 'cp-align';
+      [['', 'Auto'], ['left', 'Left'], ['center', 'Centre'], ['right', 'Right']].forEach(function (o) {
+        al.appendChild(opt(o[0], o[1], (aligns[c.field] || '') === o[0]));
+      });
+
+      var dv = document.createElement('input');
+      dv.type = 'checkbox';
+      dv.className = 'cp-div';
+      dv.title = 'Draw a divider line to the left of this column';
+      dv.checked = divs.indexOf(c.field) !== -1;
+
+      function markRow() {
+        row.classList.toggle('on',
+          !!readWidths()[c.field] || !!readSizes()[c.field] || !!readAligns()[c.field] ||
+          readDividers().indexOf(c.field) !== -1);
+      }
+
+      w.addEventListener('input', function () {
+        var m = readWidths();
+        var n = parseInt(w.value, 10);
+        if (!isNaN(n) && n > 0) m[c.field] = n; else delete m[c.field];
+        writeWidths(m);
+        markRow();
+      });
+      fs.addEventListener('input', function () {
+        var m = readSizes();
+        var n = parseFloat(fs.value);
+        if (!isNaN(n) && n > 0) m[c.field] = n; else delete m[c.field];
+        writeSizes(m);
+        markRow();
+      });
+      al.addEventListener('change', function () {
+        var m = readAligns();
+        if (al.value) m[c.field] = al.value; else delete m[c.field];
+        writeAligns(m);
+        markRow();
+      });
+      dv.addEventListener('change', function () {
+        var list = readDividers();
+        var at = list.indexOf(c.field);
+        if (dv.checked) { if (at === -1) list.push(c.field); }
+        else if (at !== -1) { list.splice(at, 1); }
+        writeDividers(list);
+        markRow();
+      });
+      markRow();
+
+      row.appendChild(name);
+      row.appendChild(w);
+      row.appendChild(fs);
+      row.appendChild(al);
+      row.appendChild(dv);
+      host.appendChild(row);
+    });
+  }
+
+  /* ---- sort level builder ------------------------------------------ */
+  var GROUP_TOKEN = '#group';
+
+  function readSort() {
+    try {
+      var a = JSON.parse($('sortLevels').value || '[]');
+      return Array.isArray(a) ? a : [];
+    } catch (e) { return []; }
+  }
+
+  function writeSort(list) {
+    $('sortLevels').value = JSON.stringify(list);
+    $('sortEmpty').style.display = list.length ? 'none' : '';
+  }
+
+  function buildSort() {
+    var host = $('sortList');
+    host.innerHTML = '';
+    var levels = readSort();
+    $('sortEmpty').style.display = levels.length ? 'none' : '';
+
+    levels.forEach(function (lvl, idx) {
+      var line = document.createElement('div');
+      line.className = 'rule-line sort-line';
+
+      var num = document.createElement('span');
+      num.className = 'sort-num';
+      num.textContent = String(idx + 1);
+
+      var field = document.createElement('select');
+      field.appendChild(opt(GROUP_TOKEN, 'Group By value', lvl.field === GROUP_TOKEN));
+      (payloadCols || []).forEach(function (c) {
+        field.appendChild(opt(c.field, c.label, lvl.field === c.field));
+      });
+      if (!payloadCols && lvl.field && lvl.field !== GROUP_TOKEN) {
+        field.appendChild(opt(lvl.field, lvl.field, true));
+      }
+
+      var dir = document.createElement('select');
+      dir.className = 'sort-dir';
+      dir.appendChild(opt('asc', 'Ascending', lvl.dir !== 'desc'));
+      dir.appendChild(opt('desc', 'Descending', lvl.dir === 'desc'));
+
+      var up = document.createElement('button');
+      up.type = 'button'; up.className = 'sort-move'; up.textContent = '\u2191';
+      up.title = 'Move up'; up.disabled = idx === 0;
+
+      var down = document.createElement('button');
+      down.type = 'button'; down.className = 'sort-move'; down.textContent = '\u2193';
+      down.title = 'Move down'; down.disabled = idx === levels.length - 1;
+
+      var del = document.createElement('button');
+      del.type = 'button'; del.className = 'rule-del'; del.textContent = 'Remove';
+
+      function save() {
+        var list = readSort();
+        list[idx] = { field: field.value, dir: dir.value };
+        writeSort(list);
+      }
+      field.addEventListener('change', save);
+      dir.addEventListener('change', save);
+
+      function move(delta) {
+        var list = readSort();
+        var target = idx + delta;
+        if (target < 0 || target >= list.length) return;
+        var tmp = list[idx];
+        list[idx] = list[target];
+        list[target] = tmp;
+        writeSort(list);
+        buildSort();
+      }
+      up.addEventListener('click', function () { move(-1); });
+      down.addEventListener('click', function () { move(1); });
+      del.addEventListener('click', function () {
+        var list = readSort();
+        list.splice(idx, 1);
+        writeSort(list);
+        buildSort();
+      });
+
+      line.appendChild(num);
+      line.appendChild(field);
+      line.appendChild(dir);
+      line.appendChild(up);
+      line.appendChild(down);
+      line.appendChild(del);
+      host.appendChild(line);
+    });
+  }
+
+  function toggleDateMode() {
+    var sel = $('dateTargetMode').value === 'selected';
+    $('prefixBlock').style.display = sel ? 'none' : '';
+    $('selectBlock').style.display = sel ? '' : 'none';
+    if (sel) refreshPreviews();
+  }
+
+  // ---- tabs ----
+  Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (t) {
+    t.addEventListener('click', function () {
+      Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (x) { x.classList.remove('active'); });
+      Array.prototype.forEach.call(document.querySelectorAll('.panel'), function (x) { x.classList.remove('active'); });
+      t.classList.add('active');
+      $(t.dataset.panel).classList.add('active');
+    });
+  });
+
+  // ---- range readouts ----
+  RANGES.forEach(function (k) {
+    var e = $(k);
+    if (e) e.addEventListener('input', function () { syncRange(k); });
+  });
+
+  // ---- color presets ----
+  Array.prototype.forEach.call(document.querySelectorAll('.swatch'), function (b) {
+    b.addEventListener('click', function () {
+      var p = PRESETS[b.dataset.preset];
+      Object.keys(p).forEach(function (k) { if ($(k)) $(k).value = p[k]; });
+    });
+  });
+
+  $('dateTargetMode').addEventListener('change', toggleDateMode);
+  ['weekDirection', 'weekLength', 'dateAnchorFallback',
+   'periodLabelTemplate', 'usePeriodLabel', 'dateHeaderStyle',
+   'dateHeaderFormat'].forEach(function (id) {
+    $(id).addEventListener('input', refreshPreviews);
+    $(id).addEventListener('change', refreshPreviews);
+  });
+  $('dateColumnMapText').addEventListener('input', function () {
+    $('dateColumnMap').value = $('dateColumnMapText').value;
+  });
+  $('nameClear').addEventListener('click', function () {
+    writeNames({});
+    writeHidden([]);
+    $('headerLabels').value = '';
+    buildNamePicker();
+  });
+  $('nameHideAll').addEventListener('click', function () {
+    writeHidden((payloadCols || []).map(function (c) { return c.field; }));
+    buildNamePicker();
+  });
+  $('nameShowAll').addEventListener('click', function () {
+    writeHidden([]);
+    buildNamePicker();
+  });
+  $('headerNamesText').addEventListener('input', function () {
+    $('headerNames').value = $('headerNamesText').value;
+  });
+
+  $('sortAdd').addEventListener('click', function () {
+    var list = readSort();
+    var used = {};
+    list.forEach(function (l) { used[l.field] = true; });
+    var next = (payloadCols || []).filter(function (c) { return !used[c.field]; })[0];
+    list.push({ field: next ? next.field : GROUP_TOKEN, dir: 'asc' });
+    writeSort(list);
+    buildSort();
+  });
+  $('sortReset').addEventListener('click', function () {
+    writeSort([{ field: GROUP_TOKEN, dir: 'asc' }]);
+    buildSort();
+  });
+
+  $('widthClear').addEventListener('click', function () {
+    writeWidths({});
+    writeSizes({});
+    writeAligns({});
+    writeDividers([]);
+    buildWidthPicker();
+  });
+  $('columnWidthsText').addEventListener('input', function () {
+    $('columnWidths').value = $('columnWidthsText').value;
+  });
+
+  /* ---- PDF header image ---------------------------------------------
+     The picture is stored inline in the workbook's settings, so it has to be
+     small: the file is redrawn through a canvas at a sensible print resolution
+     before it is encoded, which turns a 4MB logo into a few tens of KB. The
+     aspect ratio is recorded at the same time so the PDF can work out the width
+     from the height without decoding anything. */
+  var IMG_MAX_EDGE = 420;      // px — ample for a logo at 140pt on paper
+  var IMG_MAX_BYTES = 600000;  // refuse anything that still encodes bigger
+
+  function showImageState() {
+    var data = $('pdfImage').value || '';
+    var wrap = $('imgPreviewWrap');
+    if (!data) {
+      $('imgState').textContent = 'No image set.';
+      wrap.style.display = 'none';
+      return;
+    }
+    var kb = Math.round(data.length / 1024);
+    var ar = parseFloat($('pdfImageAspect').value) || 1;
+    $('imgState').textContent = 'Image set — ' + kb + ' KB stored, aspect ' + ar.toFixed(2) +
+      ':1, so at ' + $('pdfImageHeight').value + 'pt tall it prints ' +
+      Math.round($('pdfImageHeight').value * ar) + 'pt wide.';
+    $('imgPreview').src = data;
+    wrap.style.display = '';
+  }
+
+  $('pdfImageFile').addEventListener('change', function () {
+    var f = this.files && this.files[0];
+    if (!f) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      var img = new Image();
+      img.onload = function () {
+        var w = img.naturalWidth, h = img.naturalHeight;
+        if (!w || !h) { $('imgState').textContent = 'That file could not be read as an image.'; return; }
+        var k = Math.min(1, IMG_MAX_EDGE / Math.max(w, h));
+        var cw = Math.max(1, Math.round(w * k));
+        var ch = Math.max(1, Math.round(h * k));
+        var cv = document.createElement('canvas');
+        cv.width = cw; cv.height = ch;
+        cv.getContext('2d').drawImage(img, 0, 0, cw, ch);
+        // PNG keeps transparency, which most logos need; fall back to JPEG only
+        // when PNG comes out too heavy to store in the workbook.
+        var data = cv.toDataURL('image/png');
+        if (data.length > IMG_MAX_BYTES) data = cv.toDataURL('image/jpeg', 0.85);
+        if (data.length > IMG_MAX_BYTES) {
+          $('imgState').textContent = 'That image is too large to store in the workbook (' +
+            Math.round(data.length / 1024) + ' KB). Try a smaller or simpler file.';
+          return;
+        }
+        $('pdfImage').value = data;
+        $('pdfImageAspect').value = (w / h).toFixed(4);
+        showImageState();
+      };
+      img.onerror = function () { $('imgState').textContent = 'That file could not be read as an image.'; };
+      img.src = String(reader.result);
+    };
+    reader.readAsDataURL(f);
+  });
+
+  $('imgClear').addEventListener('click', function () {
+    $('pdfImage').value = '';
+    $('pdfImageAspect').value = '';
+    $('pdfImageFile').value = '';
+    showImageState();
+  });
+
+  $('pdfImageHeight').addEventListener('input', showImageState);
+
+  /* The two PDF size sliders do nothing while the Type tab is driving them, so
+     grey them out rather than leaving the user to wonder why nothing moves. */
+  function syncFontMatch() {
+    var on = $('pdfFontMatch').checked;
+    ['pdfFontSize', 'pdfHeaderFontSize'].forEach(function (k) {
+      $(k).disabled = on;
+      var row = $(k).closest('.row');
+      if (row) row.style.opacity = on ? 0.45 : 1;
+    });
+  }
+  $('pdfFontMatch').addEventListener('change', syncFontMatch);
+
+  $('ruleAdd').addEventListener('click', function () { addRule(); });
+  $('ruleNegRed').addEventListener('click', function () {
+    addRule({
+      target: '#numeric', op: 'negative', v1mode: 'value', v1field: '', v1: '', v2: '',
+      weight: 'bold', italic: 'keep',
+      useColor: true, color: '#b91c1c', useBg: false, bg: '#fee2e2'
+    });
+  });
+  $('ruleClear').addEventListener('click', function () {
+    writeRules([]);
+    buildRules();
+  });
+
+  $('bandNone').addEventListener('click', function () {
+    writeBands({});
+    buildBandPicker();
+  });
+  $('headerBandsText').addEventListener('input', function () {
+    $('headerBands').value = $('headerBandsText').value;
+    summariseBands();
+  });
+
+  $('cpNone').addEventListener('click', function () {
+    writeMap({});
+    writeOverall([]);
+    buildPicker();
+  });
+  $('cpAuto').addEventListener('click', function () {
+    // Tick every column whose header ends in a number and use that number.
+    if (!payloadCols) return;
+    var m = {};
+    payloadCols.forEach(function (c) {
+      var n = guessPeriod(c.label);
+      if (n !== null) m[c.field] = n;
+    });
+    writeMap(m);
+    buildPicker();
+  });
+
+  $('btnReset').addEventListener('click', function () {
+    setForm({});
+    toggleDateMode();
+    buildPicker();
+    buildBandPicker();
+    buildRules();
+    buildWidthPicker();
+    buildSort();
+    buildNamePicker();
+    showImageState();
+    syncFontMatch();
+  });
+
+  // ---- Tableau wiring ----
+  // The API file loads fine in a plain browser, so its presence proves nothing.
+  // Tableau hosts dialogs in an iframe; top-level means we're just previewing.
+  if (apiReady() && window.parent !== window) {
+    tableau.extensions.initializeDialogAsync().then(function (payload) {
+      try {
+        var p = JSON.parse(payload || '{}');
+        if (p && Array.isArray(p.columns)) payloadCols = p.columns;
+        payloadAnchor = p && p.anchor ? p.anchor : '';
+      } catch (e) { /* older build, or no payload */ }
+      setForm(tableau.extensions.settings.getAll() || {});
+      toggleDateMode();
+      buildPicker();
+      buildBandPicker();
+      buildRules();
+      buildWidthPicker();
+      buildSort();
+      buildNamePicker();
+      showImageState();
+      syncFontMatch();
+    }).catch(function (err) {
+      console.log('Dialog init error: ' + err);
+      setForm({});
+      toggleDateMode();
+      buildPicker();
+      buildBandPicker();
+      buildRules();
+      buildWidthPicker();
+      buildSort();
+      buildNamePicker();
+      showImageState();
+      syncFontMatch();
+    });
+
+    $('btnApply').addEventListener('click', function () {
+      var vals = collect();
+      Object.keys(vals).forEach(function (k) {
+        tableau.extensions.settings.set(k, String(vals[k]));
+      });
+      tableau.extensions.settings.saveAsync().then(function () {
+        tableau.extensions.ui.closeDialog('applied');
+      }).catch(function (err) {
+        console.log('Save error: ' + err);
+        tableau.extensions.ui.closeDialog('error');
+      });
+    });
+
+    $('btnCancel').addEventListener('click', function () {
+      tableau.extensions.ui.closeDialog('cancelled');
+    });
+  } else {
+    // Opened directly in a browser — just preview the form.
+    // Browser preview: ?cols=Field A,Field B fakes the payload for testing.
+    try {
+      var q = new URLSearchParams(window.location.search);
+      if (q.get('cols')) {
+        payloadCols = q.get('cols').split(',').map(function (n) {
+          return { field: n.trim(), label: n.trim(), isNumeric: /\d$/.test(n.trim()) };
+        });
+      }
+      payloadAnchor = q.get('anchor') || '';
+    } catch (e) { /* no URLSearchParams */ }
+    setForm({});
+    toggleDateMode();
+    buildPicker();
+    buildBandPicker();
+    buildRules();
+    buildWidthPicker();
+    buildSort();
+    buildNamePicker();
+    showImageState();
+    syncFontMatch();
+    $('btnApply').addEventListener('click', function () { window.close(); });
+    $('btnCancel').addEventListener('click', function () { window.close(); });
+  }
+})();
+</script>
+</body>
+</html>

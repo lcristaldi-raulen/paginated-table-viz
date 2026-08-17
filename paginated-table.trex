@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest manifest-version="0.1" xmlns="http://www.tableau.com/xml/extension_manifest">
+  <worksheet-extension id="com.xeomatrix.paginated-table" extension-version="1.0.0">
+    <default-locale>en_US</default-locale>
+    <name resource-id="name"/>
+    <description>Renders the worksheet as a paginated table: fixed rows per page, numbered page buttons, group header bands, quick filter and CSV export. Replaces long scrolling crosstabs.</description>
+    <author name="XeoMatrix" email="lcristaldi@xeomatrix.com" organization="XeoMatrix" website="https://xeomatrix.com"/>
+    <min-api-version>1.11</min-api-version>
+    <source-location>
+      <url>https://lcristaldi-raulen.github.io/paginated-table-viz/index.html</url>
+    </source-location>
+    <icon/>
+    <permissions>
+      <permission>full data</permission>
+    </permissions>
+    <encoding id="columns">
+      <display-name>Columns</display-name>
+      <role-spec>
+        <role-type>discrete-dimension</role-type>
+        <role-type>discrete-measure</role-type>
+        <role-type>continuous-measure</role-type>
+        <role-type>continuous-dimension</role-type>
+      </role-spec>
+      <fields max-count="30"/>
+    </encoding>
+    <encoding id="group">
+      <display-name>Group By</display-name>
+      <role-spec>
+        <role-type>discrete-dimension</role-type>
+      </role-spec>
+      <fields max-count="1"/>
+    </encoding>
+  </worksheet-extension>
+  <resources>
+    <resource id="name">
+      <text locale="en_US">Paginated Table</text>
+    </resource>
+  </resources>
+</manifest>

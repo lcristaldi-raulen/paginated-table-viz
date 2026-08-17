@@ -1,0 +1,2993 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Paginated Table</title>
+<style>
+  /* ---------- CSS variables are driven by the settings dialog ---------- */
+  :root {
+    --pt-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --pt-body-size: 12px;
+    --pt-head-size: 12px;
+    --pt-body-weight: 400;
+    --pt-head-weight: 600;
+    --pt-bg: #ffffff;
+    --pt-text: #1f2937;
+    --pt-head-bg: #f3f4f6;
+    --pt-head-text: #111827;
+    --pt-band: #f9fafb;
+    --pt-border: #e5e7eb;
+    --pt-hover: #eef2ff;
+    --pt-divider: #c3ccd9;
+    --pt-divider-w: 2px;
+    --pt-band-size: 12px;
+    --pt-group-size: 12px;
+    --pt-band-bg: #dde6f2;
+    --pt-band-text: #1f2937;
+    --pt-band-align: center;
+    --pt-head-valign: middle;
+    --pt-band-valign: middle;
+    --pt-band-justify: center;
+    --pt-group-bg: #e8edf5;
+    --pt-group-text: #1f2937;
+    --pt-accent: #2f6f4e;
+    --pt-row-pad: 4px;
+    --pt-col-min: 70px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0; padding: 0; height: 100%; width: 100%;
+    overflow: hidden;
+    font-family: var(--pt-font);
+    background: var(--pt-bg);
+    color: var(--pt-text);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Uses `order` rather than column-reverse: reversed flex containers paint
+     sticky table headers incorrectly in some Chromium builds. */
+  #app { display: flex; flex-direction: column; height: 100%; width: 100%; }
+  #app.bar-top #bar { order: 1; }
+  #app.bar-top #scroller { order: 2; }
+  #app.bar-bottom #bar { order: 2; }
+  #app.bar-bottom #scroller { order: 1; }
+
+  /* ---------- control bar ---------- */
+  #bar {
+    flex: 0 0 auto;
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 8px;
+    background: var(--pt-bg);
+    border-bottom: 1px solid var(--pt-border);
+    font-size: 11.5px;
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+  #app.bar-bottom #bar { border-bottom: none; border-top: 1px solid var(--pt-border); }
+
+  .pt-btn {
+    font: inherit; font-family: var(--pt-font);
+    border: 1px solid var(--pt-border);
+    background: var(--pt-bg); color: var(--pt-text);
+    border-radius: 4px; padding: 3px 8px; cursor: pointer;
+    line-height: 1.3; min-width: 26px;
+    transition: background .12s, border-color .12s;
+  }
+  .pt-btn:hover:not(:disabled) { background: var(--pt-hover); border-color: var(--pt-accent); }
+  .pt-btn:disabled { opacity: .4; cursor: default; }
+  /* .active must beat :hover, hence the explicit hover selector */
+  .pt-btn.active, .pt-btn.active:hover {
+    background: var(--pt-accent); border-color: var(--pt-accent);
+    color: #fff; font-weight: 600;
+  }
+  .pt-btn:focus-visible { outline: 2px solid var(--pt-accent); outline-offset: 1px; }
+  .pt-ellipsis { padding: 3px 2px; color: #9ca3af; user-select: none; }
+
+  #pageNums { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; }
+  .pt-status { white-space: nowrap; color: var(--pt-text); opacity: .72; }
+  .pt-spacer { flex: 1 1 auto; }
+  .pt-sep { width: 1px; align-self: stretch; background: var(--pt-border); margin: 0 2px; }
+
+  #jumpBox, #searchBox {
+    font: inherit; font-family: var(--pt-font);
+    border: 1px solid var(--pt-border); border-radius: 4px;
+    padding: 3px 6px; color: var(--pt-text); background: var(--pt-bg);
+  }
+  #jumpBox { width: 52px; text-align: center; }
+  #searchBox { width: 150px; }
+  #rowsSel {
+    font: inherit; font-family: var(--pt-font);
+    border: 1px solid var(--pt-border); border-radius: 4px;
+    padding: 3px 4px; background: var(--pt-bg); color: var(--pt-text);
+  }
+  #gearBtn { font-size: 13px; padding: 2px 7px; }
+
+  /* ---------- table ---------- */
+  #scroller { flex: 1 1 auto; overflow: auto; position: relative; }
+
+  table.pt {
+    border-collapse: separate; border-spacing: 0;
+    width: 100%;
+    font-size: var(--pt-body-size);
+    font-weight: var(--pt-body-weight);
+  }
+  table.pt th, table.pt td {
+    padding: var(--pt-row-pad) 7px;
+    border-bottom: var(--pt-border-w, 1px) solid var(--pt-border);
+    text-align: left;
+    vertical-align: top;
+    min-width: var(--pt-col-min);
+  }
+  table.pt.nowrap th, table.pt.nowrap td {
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    max-width: 320px;
+  }
+  /* A column given an explicit width always wraps inside it, whatever the
+     global setting — that is the point of setting a width. The row then grows
+     to fit, which is ordinary table behaviour once the text can wrap. */
+  table.pt th.sized, table.pt td.sized {
+    white-space: normal; overflow: visible; text-overflow: clip;
+    overflow-wrap: break-word; word-break: normal;
+  }
+  /* The clamp lives on an inner block. Setting display:-webkit-box on the <td>
+     itself takes it out of the table layout — Chromium resolves it to
+     flow-root and generates anonymous cells, which breaks row alignment. */
+  table.pt td .clamp {
+    display: -webkit-box; -webkit-box-orient: vertical;
+    -webkit-line-clamp: var(--pt-max-lines, 3);
+    overflow: hidden;
+  }
+  table.pt thead tr.labels th {
+    position: sticky; z-index: 3;   /* `top` is set from the band row's height */
+  }
+  /* A header with no band above it owns both tiers. Sitting it at the top of
+     that merged block lines it up with the band names beside it, instead of
+     floating in the middle of a column of empty space. */
+  table.pt thead th.spans-tiers.span-top { vertical-align: top; }
+  table.pt thead th {
+    position: sticky; top: 0; z-index: 3;
+    vertical-align: var(--pt-head-valign);
+    background: var(--pt-head-bg);
+    color: var(--pt-head-text);
+    font-size: var(--pt-head-size);
+    font-weight: var(--pt-head-weight);
+    border-bottom: var(--pt-border-w2, 2px) solid var(--pt-border);
+    white-space: nowrap;
+    user-select: none;
+  }
+  /* merged band row above the column headers */
+  table.pt thead tr.bands th.band-cell {
+    position: sticky; top: 0; z-index: 4;
+    background: var(--pt-band-bg);
+    color: var(--pt-band-text);
+    font-weight: 700; font-size: var(--pt-band-size);
+    letter-spacing: .02em;
+    border-bottom: var(--pt-border-w, 1px) solid var(--pt-border);
+    /* The half-pixel each side gives the band row 1px more height than the row
+       padding alone would, which keeps the merged name off the rules above and
+       below it. Matched by an extra 0.75pt in the PDF. */
+    padding: calc(var(--pt-row-pad) + 0.5px) 7px;
+    white-space: nowrap;
+    text-align: var(--pt-band-align);
+  }
+  table.pt thead tr.bands th.band-cell .band-sub {
+    display: block; font-weight: 400; font-size: .88em; opacity: .78;
+    letter-spacing: .01em; margin-top: 1px;
+  }
+  table.pt thead tr.bands th.band-cell.empty { background: var(--pt-head-bg); }
+  table.pt thead tr.bands th.spanned { border-left: var(--pt-border-w, 1px) solid var(--pt-border); }
+  table.pt thead th .hdr-sub {
+    display: block; font-weight: 400; font-size: .88em; opacity: .72;
+    letter-spacing: .01em; margin-top: 1px;
+  }
+  table.pt thead th.sortable { cursor: pointer; }
+  table.pt thead th.sortable:hover { background: var(--pt-hover); }
+  .sort-caret { font-size: 9px; margin-left: 3px; color: var(--pt-accent); }
+
+  table.pt td.num, table.pt th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  /* explicit per-column alignment beats the numeric default */
+  table.pt th.al-left, table.pt td.al-left { text-align: left; }
+  table.pt th.al-center, table.pt td.al-center { text-align: center; }
+  table.pt th.al-right, table.pt td.al-right { text-align: right; }
+  table.pt td.rownum, table.pt th.rownum {
+    text-align: right; color: #9ca3af; font-variant-numeric: tabular-nums;
+    min-width: 34px; width: 34px;
+  }
+
+  tbody tr.data.banded { background: var(--pt-band); }
+  tbody tr.data:hover { background: var(--pt-hover); }
+  tbody tr.data.selected { outline: 1px solid var(--pt-accent); outline-offset: -1px; }
+
+  /* Group bands span every column. The label lives in a sticky inline-block so
+     it stays on screen when the table is scrolled sideways. */
+  tbody tr.group td {
+    background: var(--pt-group-bg);
+    color: var(--pt-group-text);
+    font-weight: 600;
+    font-size: var(--pt-group-size);
+    border-bottom: var(--pt-border-w, 1px) solid var(--pt-border);
+    white-space: nowrap;
+  }
+  table.pt.nowrap tbody tr.group td { overflow: visible; max-width: none; }
+  table.pt thead tr.bands th.band-cell { overflow: hidden; position: relative; vertical-align: var(--pt-band-valign); }
+  table.pt thead tr.bands th.band-cell .band-spacer {
+    display: inline-block; width: 0; overflow: hidden;
+  }
+  table.pt thead tr.bands th.band-cell.wrap { white-space: normal; }
+  table.pt thead tr.bands th.band-cell.wrap .band-inner {
+    white-space: normal; overflow-wrap: break-word; text-overflow: clip;
+  }
+  table.pt thead tr.bands th.band-cell .band-inner {
+    position: absolute;
+    left: 0; right: 0; top: var(--pt-row-pad); bottom: var(--pt-row-pad);
+    padding: 0 7px; overflow: hidden; text-overflow: ellipsis;
+    text-align: var(--pt-band-align);
+    display: flex; flex-direction: column; justify-content: var(--pt-band-justify);
+  }
+  table.pt thead tr.bands th.band-cell .band-inner > * { flex: 0 0 auto; }
+  tbody tr.group .grp-inner { position: sticky; left: 7px; display: inline-block; }
+  tbody tr.group .grp-count { font-weight: 400; opacity: .7; margin-left: 6px; }
+  tbody tr.group .grp-cont { font-weight: 400; font-style: italic; opacity: .6; margin-left: 6px; }
+
+  /* vertical rules at band boundaries, running the full height of the table */
+  table.pt th.band-start,
+  table.pt td.band-start { border-left: var(--pt-divider-w) solid var(--pt-divider); }
+  table.pt thead tr.bands th.band-cell.spanned { border-left: var(--pt-divider-w) solid var(--pt-divider); }
+
+  /* conditional formatting */
+  table.pt td.cf-bold { font-weight: 700; }
+  table.pt td.cf-normal { font-weight: 400; }
+  table.pt td.cf-italic { font-style: italic; }
+  table.pt td.cf-upright { font-style: normal; }
+
+  /* frozen columns */
+  th.frozen, td.frozen { position: sticky; z-index: 2; background: var(--pt-bg); }
+  /* selector must out-specify `table.pt thead th`, or the later (unfrozen)
+     header cells paint over the pinned ones */
+  /* must also out-specify `table.pt thead tr.labels th`, which sets z-index 3 */
+  table.pt thead th.frozen,
+  table.pt thead tr.labels th.frozen { z-index: 5; background: var(--pt-head-bg); }
+  table.pt thead tr.bands th.band-cell.frozen { z-index: 6; background: var(--pt-band-bg); }
+  table.pt thead tr.bands th.band-cell.frozen.empty { background: var(--pt-head-bg); }
+  tbody tr.data.banded td.frozen { background: var(--pt-band); }
+  tbody tr.group td.frozen { background: var(--pt-group-bg); }
+  tbody tr.data:hover td.frozen { background: var(--pt-hover); }
+  td.frozen.last-frozen, th.frozen.last-frozen { border-right: var(--pt-border-w, 1px) solid var(--pt-border); }
+
+  /* ---------- empty / error states ---------- */
+  .pt-msg {
+    display: flex; align-items: center; justify-content: center;
+    height: 100%; padding: 24px; text-align: center;
+  }
+  .pt-msg-inner { max-width: 460px; color: var(--pt-text); opacity: .8; font-size: 12.5px; line-height: 1.6; }
+  .pt-msg-inner h2 { margin: 0 0 8px; font-size: 14px; color: var(--pt-text); }
+  .pt-msg-inner code {
+    background: #f3f4f6; border: 1px solid var(--pt-border);
+    border-radius: 3px; padding: 1px 4px; font-size: 11.5px;
+  }
+  .pt-toast {
+    background: #fef3c7; color: #92400e; border: 1px solid #fcd34d;
+    border-radius: 3px; padding: 2px 7px; font-size: 10.5px;
+  }
+  .pt-toast.err { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+  .pt-demo-flag {
+    background: #fef3c7; color: #92400e; border: 1px solid #fcd34d;
+    border-radius: 3px; padding: 2px 6px; font-size: 10px; white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+<div id="app" class="bar-bottom">
+  <div id="bar"></div>
+  <div id="scroller"><div id="tableHost"></div></div>
+</div>
+
+<!-- The Extensions API must be loaded synchronously, before initializeAsync is
+     called: Tableau times out the handshake if the extension is slow to answer.
+     Same-origin (shipped alongside index.html), which is also how the official
+     samples load it, so Desktop's embedded browser never blocks it. -->
+<script src="tableau.extensions.1.latest.min.js"></script>
+
+<script>
+(function () {
+  'use strict';
+
+  /* =====================================================================
+     Constants
+     ===================================================================== */
+
+  var ENC_COLUMNS = 'columns';   // multi-field: the table's columns, in drop order
+  var ENC_GROUP = 'group';       // single field: group band header
+  var ENC_TOOLTIP = 'detail';    // single field: extra detail kept for tooltips
+
+  var DEFAULTS = {
+    rowsPerPage: 25,
+    rowsPerPageOptions: '10,25,50,100,250',
+    barPosition: 'bottom',
+    showNumberedPages: true,
+    numberedWindow: 7,
+    showJump: true,
+    showRowsPerPage: true,
+    showTotals: true,
+    showSearch: true,
+    showExport: true,
+    showRowNumbers: false,
+    showGroupBands: true,
+    repeatGroupHeader: true,
+    showGroupCounts: true,
+    groupPrefix: '',
+    allowSort: true,
+    showSortCaret: false,
+    sortLevels: '[{"field":"#group","dir":"asc"}]',
+    groupSortFirst: true,
+    selectOnClick: false,
+    wrapText: false,
+    maxLines: 0,
+    columnWidths: '{}',
+    columnAligns: '{}',
+    columnFontSizes: '{}',
+    headerAlign: 'center',
+    nullDisplay: 'blank',
+    nullText: '',
+    freezeCols: 0,
+    banding: true,
+    headerLabels: '',
+    headerNames: '{}',
+    hiddenHeaders: '[]',
+    // date-labelled headers
+    dateHeaders: false,
+    dateParamName: 'Enter Through Week Ended Date',
+    dateTargetMode: 'prefix',
+    dateHeaderPrefix: 'Week',
+    dateColumnMap: '{}',
+    showHeaderBands: true,
+    headerBands: '{}',
+    bandAlign: 'center',
+    bandFontSize: 12,
+    groupFontSize: 12,
+    bandFitColumns: true,
+    bandWrap: true,
+    dividerCols: '[]',
+    bandSpanUnbanded: true,
+    spanHeaderTop: true,
+    headerVAlign: 'middle',
+    bandVAlign: 'middle',
+    bandDividers: true,
+    dividerColor: '#c3ccd9',
+    dividerWidth: 2,
+    cellRules: '[]',
+    bandDateRange: true,
+    bandDateStyle: 'stack',
+    bandBg: '#dde6f2',
+    bandText: '#1f2937',
+    overallRangeCols: '[]',
+    usePeriodLabel: true,
+    periodLabelTemplate: 'Week {n}',
+    periodLabelNumber: true,
+    dateHeaderStyle: 'append',
+    dateHeaderFormat: 'mmm-d-range',
+    weekDirection: 'back',
+    weekLength: 7,
+    dateAnchorFallback: '',
+    // pdf export
+    showPdf: true,
+    pdfTitle: '',
+    pdfNote: '',
+    pdfOrientation: 'landscape',
+    pdfPageSize: 'legal',
+    pdfFitWidth: true,
+    pdfRowsMode: 'match',
+    pdfImage: '',
+    pdfImageAspect: 0,
+    pdfImageHeight: 40,
+    pdfImageAlign: 'left',
+    pdfImageRepeat: true,
+    pdfFontMatch: true,
+    pdfFontSize: 7,
+    pdfHeaderFontSize: 7,
+    pdfShowRowCount: true,
+    pdfRowWord: 'row',
+    pdfRowWordPlural: 'rows',
+    pdfIncludeGroups: true,
+    pdfPageNumbers: true,
+    pdfTimestamp: true,
+    pdfRepeatTitle: true,
+    pdfMargin: 24,
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+    bodySize: 12,
+    headSize: 12,
+    bodyWeight: 400,
+    headWeight: 600,
+    rowPad: 4,
+    colMin: 70,
+    bg: '#ffffff',
+    text: '#1f2937',
+    headBg: '#f3f4f6',
+    headText: '#111827',
+    band: '#f4f6f9',
+    border: '#e5e7eb',
+    borderWidth: 1,
+    hover: '#eef2ff',
+    groupBg: '#e8edf5',
+    groupText: '#1f2937',
+    accent: '#2f6f4e'
+  };
+
+  /* =====================================================================
+     State
+     ===================================================================== */
+  var cfg = Object.assign({}, DEFAULTS);
+  var worksheet = null;
+  var isDemo = false;
+
+  var demoReason = '';
+  var anchorDate = null;   // Date behind the week headers, or null
+  var anchorSource = '';   // human-readable provenance for the tooltip
+  var unbindParam = null;  // ParameterChanged de-registration handle
+  var sheetName = '';
+  var rawRows = [];        // [{ fieldName: {value, formattedValue} }]
+  var colMeta = {};        // fieldName -> { dataType, isNumeric }
+  var tableCols = [];      // [{ fieldName, label, isNumeric }]
+  var groupField = null;   // fieldName or null
+
+  var filtered = [];       // rows after the search filter
+  var page = 1;
+  // Sort levels applied in order. `interactiveSort` holds what the user clicked
+  // in the header; the configured levels from the dialog sit around it.
+  var interactiveSort = [];   // [{ field, dir: 'asc'|'desc' }]
+  var GROUP_TOKEN = '#group';
+  var searchTerm = '';
+
+  var el = {
+    app: document.getElementById('app'),
+    bar: document.getElementById('bar'),
+    scroller: document.getElementById('scroller'),
+    host: document.getElementById('tableHost')
+  };
+
+  /* =====================================================================
+     Utilities
+     ===================================================================== */
+  function apiReady() {
+    return typeof tableau !== 'undefined' && tableau && !!tableau.extensions;
+  }
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function clamp(n, lo, hi) { return Math.min(hi, Math.max(lo, n)); }
+
+  function parseList(str, fallback) {
+    var out = String(str || '').split(',')
+      .map(function (x) { return parseInt(x.trim(), 10); })
+      .filter(function (x) { return !isNaN(x) && x > 0; });
+    return out.length ? out : fallback;
+  }
+
+  function cellOf(row, fieldName) {
+    var c = row[fieldName];
+    if (c === undefined || c === null) return { value: null, formattedValue: '' };
+    return c;
+  }
+
+  // Tableau reports nulls as a null value, an empty formattedValue, or the
+  // literal "%null%" depending on the source, so all three are treated alike.
+  // Nulls reach the extension in several shapes depending on the source and on
+  // whether the column is a calculated field: a genuine null value, the literal
+  // string "%null%" in either slot, or an empty string from a string calc.
+  // Checking only `value === null` misses most real cases.
+  function isNullish(x) {
+    if (x === null || x === undefined) return true;
+    if (typeof x !== 'string') return false;
+    var t = x.trim();
+    // Tableau writes nulls as "", "%null%" or the word "Null" depending on the
+    // field type and data source — a null date arrives as the literal "Null".
+    return t === '' || /^%null%$/i.test(t) || /^null$/i.test(t);
+  }
+
+  function isNullCell(c) {
+    if (!c) return true;
+    if (!isNullish(c.value)) return false;
+    // Value is empty-ish; the cell is only truly empty if the display is too.
+    return isNullish(c.formattedValue);
+  }
+
+  function nullText() {
+    switch (cfg.nullDisplay) {
+      case 'zero': return '0';   // applies to every column, not just numerics
+      case 'dash': return '\u2013';
+      case 'text': return String(cfg.nullText || '');
+      default:     return '';
+    }
+  }
+
+  function displayOf(row, fieldName) {
+    var c = cellOf(row, fieldName);
+    if (isNullCell(c)) return nullText();
+    if (c.formattedValue !== undefined && c.formattedValue !== null && c.formattedValue !== '') {
+      return c.formattedValue;
+    }
+    return c.value === null || c.value === undefined ? '' : String(c.value);
+  }
+
+  /* =====================================================================
+     Settings
+     ===================================================================== */
+  function loadSettings() {
+    if (isDemo || !apiReady() || !tableau.extensions.settings) return;
+    var s = tableau.extensions.settings.getAll() || {};
+    Object.keys(DEFAULTS).forEach(function (k) {
+      if (s[k] === undefined) return;   // '' is meaningful (cleared text field)
+      var d = DEFAULTS[k];
+      if (typeof d === 'boolean') cfg[k] = (s[k] === 'true' || s[k] === true);
+      else if (typeof d === 'number') {
+        var n = parseFloat(s[k]);
+        cfg[k] = isNaN(n) ? d : n;
+      } else cfg[k] = s[k];
+    });
+  }
+
+  function applyTheme() {
+    var r = document.documentElement.style;
+    r.setProperty('--pt-font', cfg.fontFamily);
+    r.setProperty('--pt-body-size', cfg.bodySize + 'px');
+    r.setProperty('--pt-head-size', cfg.headSize + 'px');
+    r.setProperty('--pt-body-weight', String(cfg.bodyWeight));
+    r.setProperty('--pt-head-weight', String(cfg.headWeight));
+    r.setProperty('--pt-bg', cfg.bg);
+    r.setProperty('--pt-text', cfg.text);
+    r.setProperty('--pt-head-bg', cfg.headBg);
+    r.setProperty('--pt-head-text', cfg.headText);
+    r.setProperty('--pt-band', cfg.banding ? cfg.band : 'transparent');
+    r.setProperty('--pt-border', cfg.border);
+    /* 0 is a legitimate choice — it switches the gridlines off entirely
+       without needing a separate toggle. The header underline stays at twice
+       the body weight, the proportion the table has always had. */
+    var bw = Number(cfg.borderWidth);
+    if (!isFinite(bw) || bw < 0) bw = 1;
+    r.setProperty('--pt-border-w', bw + 'px');
+    r.setProperty('--pt-border-w2', (bw * 2) + 'px');
+    r.setProperty('--pt-hover', cfg.hover);
+    r.setProperty('--pt-band-size', Math.max(6, cfg.bandFontSize) + 'px');
+    r.setProperty('--pt-group-size', Math.max(6, cfg.groupFontSize) + 'px');
+    r.setProperty('--pt-max-lines', String(Math.max(1, Math.round(cfg.maxLines) || 1)));
+    r.setProperty('--pt-divider', cfg.dividerColor);
+    r.setProperty('--pt-divider-w', Math.max(1, Math.round(cfg.dividerWidth)) + 'px');
+    r.setProperty('--pt-band-bg', cfg.bandBg);
+    r.setProperty('--pt-band-text', cfg.bandText);
+    r.setProperty('--pt-band-align', cfg.bandAlign === 'left' ? 'left' : 'center');
+    var VA = { top: 'top', middle: 'middle', bottom: 'bottom' };
+    var FA = { top: 'flex-start', middle: 'center', bottom: 'flex-end' };
+    r.setProperty('--pt-head-valign', VA[cfg.headerVAlign] || 'middle');
+    r.setProperty('--pt-band-valign', VA[cfg.bandVAlign] || 'middle');
+    r.setProperty('--pt-band-justify', FA[cfg.bandVAlign] || 'center');
+    r.setProperty('--pt-group-bg', cfg.groupBg);
+    r.setProperty('--pt-group-text', cfg.groupText);
+    r.setProperty('--pt-accent', cfg.accent);
+    r.setProperty('--pt-row-pad', cfg.rowPad + 'px');
+    r.setProperty('--pt-col-min', cfg.colMin + 'px');
+    el.app.className = cfg.barPosition === 'top' ? 'bar-top' : 'bar-bottom';
+  }
+
+  /* =====================================================================
+     Data access (patterns from the official Tableau viz samples)
+     ===================================================================== */
+
+  // NOTE: index into the row with columns[j].index — not j. The column's
+  // .index property does not always match its position in the array.
+  function convertToListOfNamedRows(dataTablePage) {
+    var rows = [];
+    var columns = dataTablePage.columns;
+    var data = dataTablePage.data;
+    for (var i = 0; i < data.length; ++i) {
+      var row = {};
+      for (var j = 0; j < columns.length; ++j) {
+        row[columns[j].fieldName] = data[i][columns[j].index];
+      }
+      rows.push(row);
+    }
+    return rows;
+  }
+
+  function recordColumnMeta(dataTablePage) {
+    (dataTablePage.columns || []).forEach(function (c) {
+      var dt = String(c.dataType || '').toLowerCase();
+      colMeta[c.fieldName] = {
+        dataType: dt,
+        isNumeric: dt === 'int' || dt === 'float' || dt === 'integer' || dt === 'number',
+        isDate: dt === 'date' || dt === 'date-time' || dt === 'datetime'
+      };
+    });
+  }
+
+  async function getSummaryDataTable(ws) {
+    var rows = [];
+    colMeta = {};
+    var reader = await ws.getSummaryDataReaderAsync(undefined, { ignoreSelection: true });
+    for (var p = 0; p < reader.pageCount; p++) {
+      var pg = await reader.getPageAsync(p);
+      if (p === 0) recordColumnMeta(pg);
+      rows = rows.concat(convertToListOfNamedRows(pg));
+    }
+    await reader.releaseAsync();
+    return rows;
+  }
+
+  // columns  -> array of field objects (drop order)
+  // group    -> single field object
+  async function getEncodingMap(ws) {
+    var spec = await ws.getVisualSpecificationAsync();
+    var map = { columns: [], group: null, detail: null };
+    if (!spec || spec.activeMarksSpecificationIndex < 0) return map;
+    var marks = spec.marksSpecifications[spec.activeMarksSpecificationIndex];
+    (marks.encodings || []).forEach(function (enc) {
+      if (enc.id === ENC_COLUMNS) map.columns.push(enc.field);
+      else if (enc.id === ENC_GROUP) map.group = enc.field;
+      else if (enc.id === ENC_TOOLTIP) map.detail = enc.field;
+    });
+    return map;
+  }
+
+  /* =====================================================================
+     Date-labelled headers
+
+     Columns whose header matches the prefix (default "Week") and ends in a
+     number get a date range derived from a Tableau parameter — the report's
+     through-date — so the labels follow the parameter instead of being retyped.
+     ===================================================================== */
+  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  function addDays(d, n) {
+    var x = new Date(d.getTime());
+    x.setDate(x.getDate() + n);
+    return x;
+  }
+
+  function isValidDate(d) {
+    return d instanceof Date && !isNaN(d.getTime());
+  }
+
+  // Date parameters can surface as a Date, an ISO string, or an epoch number
+  // depending on the data source, so try each in turn.
+  function parseDateValue(dv) {
+    if (!dv) return null;
+    var candidates = [dv.nativeValue, dv.value, dv.formattedValue];
+    for (var i = 0; i < candidates.length; i++) {
+      var c = candidates[i];
+      if (c === null || c === undefined || c === '') continue;
+      if (isValidDate(c)) return c;
+      if (typeof c === 'number') {
+        var dn = new Date(c);
+        if (isValidDate(dn)) return dn;
+      }
+      if (typeof c === 'string') {
+        var ds = parseLooseDate(c);
+        if (ds) return ds;
+      }
+    }
+    return null;
+  }
+
+  function parseLooseDate(str) {
+    var t = String(str).trim();
+    if (!t) return null;
+    // Anchor plain YYYY-MM-DD to local noon so timezone shifts can't roll the day.
+    var iso = t.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (iso) return new Date(+iso[1], +iso[2] - 1, +iso[3], 12);
+    var us = t.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+    if (us) {
+      var yr = +us[3];
+      if (yr < 100) yr += yr < 70 ? 2000 : 1900;
+      return new Date(yr, +us[1] - 1, +us[2], 12);
+    }
+    var d = new Date(t);
+    return isValidDate(d) ? d : null;
+  }
+
+  // Sort key for a date cell; nulls and unparseable values sink to the bottom.
+  function dateKey(dv) {
+    var d = parseDateValue(dv);
+    return d ? d.getTime() : -Infinity;
+  }
+
+  function fmtDate(d, style) {
+    var mm = ('0' + (d.getMonth() + 1)).slice(-2);
+    var dd = ('0' + d.getDate()).slice(-2);
+    if (style === 'mm/dd/yy') return mm + '/' + dd + '/' + String(d.getFullYear()).slice(-2);
+    if (style === 'mm/dd') return mm + '/' + dd;
+    if (style === 'm/d') return (d.getMonth() + 1) + '/' + d.getDate();
+    return MONTHS[d.getMonth()] + ' ' + d.getDate();
+  }
+
+  function formatRange(start, end, style) {
+    var dash = '\u2013';
+    if (style === 'm/d') return fmtDate(start, 'm/d') + dash + fmtDate(end, 'm/d');
+    if (style === 'mm/dd') return fmtDate(start, 'mm/dd') + ' ' + dash + ' ' + fmtDate(end, 'mm/dd');
+    if (style === 'mm/dd/yy') return fmtDate(start, 'mm/dd/yy') + ' ' + dash + ' ' + fmtDate(end, 'mm/dd/yy');
+    if (style === 'mmm-d-both') return fmtDate(start, 'mmm') + ' ' + dash + ' ' + fmtDate(end, 'mmm');
+    // 'mmm-d-range': collapse the month when both ends share it — "Jan 1–7"
+    if (start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()) {
+      return MONTHS[start.getMonth()] + ' ' + start.getDate() + dash + end.getDate();
+    }
+    return fmtDate(start, 'mmm') + ' ' + dash + ' ' + fmtDate(end, 'mmm');
+  }
+
+  // Reads the anchor date from the named Tableau parameter, falling back to the
+  // date typed in the settings dialog. Re-binds the ParameterChanged listener.
+  async function loadAnchorDate() {
+    anchorDate = null;
+    anchorSource = '';
+    if (unbindParam) { try { unbindParam(); } catch (e) { /* already gone */ } unbindParam = null; }
+    if (!cfg.dateHeaders) return;
+
+    if (worksheet && String(cfg.dateParamName || '').trim()) {
+      try {
+        var param = await worksheet.findParameterAsync(String(cfg.dateParamName).trim());
+        if (param) {
+          var d = parseDateValue(param.currentValue);
+          if (d) {
+            anchorDate = d;
+            anchorSource = 'parameter \u201c' + param.name + '\u201d';
+          }
+          if (param.addEventListener) {
+            unbindParam = param.addEventListener(
+              tableau.TableauEventType.ParameterChanged,
+              function () { refreshHeaders(); }
+            );
+          }
+        }
+      } catch (e) {
+        console.log('Parameter lookup failed: ' + e);
+      }
+    }
+
+    if (!anchorDate && String(cfg.dateAnchorFallback || '').trim()) {
+      var fb = parseLooseDate(cfg.dateAnchorFallback);
+      if (fb) {
+        anchorDate = fb;
+        anchorSource = 'anchor date in settings';
+      }
+    }
+  }
+
+  function parseColumnList(raw) {
+    try {
+      var a = JSON.parse(raw || '[]');
+      return Array.isArray(a) ? a.map(String) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function parseColumnMap(raw) {
+    try {
+      var o = JSON.parse(raw || '{}');
+      return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  async function refreshHeaders() {
+    await loadAnchorDate();
+    applyDateHeaders();
+    render();
+  }
+
+  // "Week {n}" — or "Week" alone, in which case the number is appended.
+  function periodLabel(n) {
+    var t = String(cfg.periodLabelTemplate || DEFAULTS.periodLabelTemplate);
+    if (!cfg.periodLabelNumber) {
+      // Drop the number entirely: "Week {n}" becomes "Week", so every period
+      // column reads the same and the dates alone distinguish them.
+      return t.replace(/\{n\}/g, '').replace(/\s+/g, ' ').trim();
+    }
+    if (t.indexOf('{n}') !== -1) return t.replace(/\{n\}/g, n);
+    return (t.trim() + ' ' + n).trim();
+  }
+
+  function applyDateHeaders() {
+    // Always start from the base label: this runs again on every settings or
+    // parameter change, and must not compound onto its own output.
+    tableCols.forEach(function (c) {
+      c.label = c.baseLabel;
+      c.sublabel = null;
+      c.dateTitle = null;
+      c.dateStart = null;
+      c.dateEnd = null;
+      c.isOverallRange = false;
+    });
+    if (!cfg.dateHeaders || !anchorDate) return;
+
+    var hits = [];
+
+    var overallCols = parseColumnList(cfg.overallRangeCols);
+    function isOverallCol(c) { return overallCols.indexOf(c.fieldName) !== -1; }
+
+    if (cfg.dateTargetMode === 'selected') {
+      // Explicit per-column periods chosen in the settings dialog, keyed by
+      // field name so header overrides and reordering can't break the mapping.
+      var map = parseColumnMap(cfg.dateColumnMap);
+      tableCols.forEach(function (c) {
+        if (isOverallCol(c)) return;   // shows the aggregate, not its own period
+        if (!Object.prototype.hasOwnProperty.call(map, c.fieldName)) return;
+        var n = parseInt(map[c.fieldName], 10);
+        if (isNaN(n)) return;
+        hits.push({ col: c, num: n });
+      });
+    } else {
+      var prefix = String(cfg.dateHeaderPrefix || '').trim().toLowerCase();
+      tableCols.forEach(function (c) {
+        if (isOverallCol(c)) return;
+        if (prefix && c.label.trim().toLowerCase().indexOf(prefix) !== 0) return;
+        var m = c.label.match(/(\d+)\s*$/);
+        hits.push({ col: c, num: m ? parseInt(m[1], 10) : null });
+      });
+    }
+    if (!hits.length) return;
+
+    // Unnumbered headers fall back to their left-to-right position.
+    var nums = hits.map(function (h, i) { return h.num === null ? i + 1 : h.num; });
+    var maxN = Math.max.apply(null, nums);
+    var len = Math.max(1, Math.round(cfg.weekLength));
+
+    hits.forEach(function (h, i) {
+      var n = nums[i];
+      var end;
+      if (cfg.weekDirection === 'forward') end = addDays(anchorDate, -(maxN - n) * len);
+      else if (cfg.weekDirection === 'after') end = addDays(anchorDate, n * len);
+      else end = addDays(anchorDate, -(n - 1) * len);   // 'back' — week 1 ends on the anchor
+      var start = addDays(end, -(len - 1));
+
+      h.col.dateStart = start;
+      h.col.dateEnd = end;
+      var range = formatRange(start, end, cfg.dateHeaderFormat);
+      h.col.dateTitle = h.col.fieldName + ' \u2014 ' +
+        formatRange(start, end, 'mm/dd/yy') +
+        (anchorSource ? ' (from ' + anchorSource + ')' : '');
+      if (cfg.dateHeaderStyle === 'replace') {
+        h.col.label = range;
+      } else {
+        h.col.sublabel = range;
+        // A typed header override always wins; otherwise a labelled column is
+        // titled by its period rather than by the underlying field name.
+        if (cfg.usePeriodLabel && !h.col.labelOverridden) {
+          h.col.label = periodLabel(n);
+        }
+      }
+    });
+
+    applyOverallRangeCols(overallCols);
+  }
+
+  // Columns flagged "overall" show the min start / max end across every dated
+  // column, and keep their own name — they represent the whole span, not one
+  // period, so the "Week N" rename deliberately does not apply.
+  function applyOverallRangeCols(overallCols) {
+    if (!overallCols.length) return;
+
+    var dated = tableCols.filter(function (c) { return c.dateStart && c.dateEnd; });
+    if (!dated.length) return;
+    var min = dated[0].dateStart, max = dated[0].dateEnd;
+    dated.forEach(function (c) {
+      if (c.dateStart < min) min = c.dateStart;
+      if (c.dateEnd > max) max = c.dateEnd;
+    });
+
+    var range = formatRange(min, max, cfg.dateHeaderFormat);
+    tableCols.forEach(function (c) {
+      if (overallCols.indexOf(c.fieldName) === -1) return;
+      c.dateStart = min;
+      c.dateEnd = max;
+      c.isOverallRange = true;
+      c.dateTitle = c.fieldName + ' \u2014 overall ' + formatRange(min, max, 'mm/dd/yy') +
+        ' across ' + dated.length + ' dated column' + (dated.length === 1 ? '' : 's');
+      if (cfg.dateHeaderStyle === 'replace') c.label = range;
+      else c.sublabel = range;
+    });
+  }
+
+  // Positional, comma-separated overrides from the settings dialog. Sets
+  // baseLabel too so date labelling never overwrites a typed header.
+  function applyHeaderOverrides() {
+    // Legacy positional list first, so settings saved before the per-column
+    // picker existed still apply.
+    var positional = String(cfg.headerLabels || '').split(',').map(function (x) { return x.trim(); });
+    var named = parseColumnMap(cfg.headerNames);
+    var hidden = parseColumnList(cfg.hiddenHeaders);
+
+    tableCols.forEach(function (c, i) {
+      var custom = null;
+      if (positional[i]) custom = positional[i];
+      if (Object.prototype.hasOwnProperty.call(named, c.fieldName)) {
+        var v = String(named[c.fieldName] === null || named[c.fieldName] === undefined ? '' : named[c.fieldName]).trim();
+        if (v) custom = v;
+      }
+      if (custom) {
+        c.label = custom;
+        c.baseLabel = custom;
+        c.labelOverridden = true;
+      }
+      c.hideHeader = hidden.indexOf(c.fieldName) !== -1;
+    });
+  }
+
+  // Adjacent columns carrying the same band name merge into one spanning cell.
+  // Non-adjacent columns with the same name simply produce two separate bands,
+  // which keeps the model independent of column order.
+  var DATED_RUN_KEY = '\u0000dated';   // groups unnamed dated columns together
+
+  // Computed regardless of showHeaderBands: the divider lines follow the same
+  // grouping even when the band row itself is hidden.
+  function bandRuns() {
+    var map = parseColumnMap(cfg.headerBands);
+    var runs = [];
+    tableCols.forEach(function (c) {
+      var label = map[c.fieldName];
+      label = (label === undefined || label === null) ? '' : String(label).trim();
+      // Unnamed columns that carry a date span form their own run, so the
+      // overall range can appear without having to invent a band name.
+      var key = label || (cfg.bandDateRange && c.dateStart ? DATED_RUN_KEY : '');
+      var last = runs[runs.length - 1];
+      if (last && last.key === key) { last.count++; last.cols.push(c); }
+      else runs.push({ key: key, label: label, count: 1, cols: [c] });
+    });
+
+    runs.forEach(function (r) {
+      r.range = '';
+      if (!cfg.bandDateRange) return;
+      var dated = r.cols.filter(function (c) { return c.dateStart && c.dateEnd; });
+      if (!dated.length) return;
+      var min = dated[0].dateStart, max = dated[0].dateEnd;
+      dated.forEach(function (c) {
+        if (c.dateStart < min) min = c.dateStart;
+        if (c.dateEnd > max) max = c.dateEnd;
+      });
+      r.range = formatRange(min, max, cfg.dateHeaderFormat);
+      r.rangeFull = formatRange(min, max, 'mm/dd/yy');
+      r.datedCount = dated.length;
+    });
+    return runs;
+  }
+
+  function runHasContent(r) {
+    return r.label !== '' || r.range !== '';
+  }
+
+  function showBandRow() {
+    return cfg.showHeaderBands && bandRuns().some(runHasContent);
+  }
+
+  // Zero-based column indices that begin a new band run (the first column is
+  // never a divider — there is nothing to its left to separate it from).
+  // fieldName -> pixel width. Blank or non-positive entries mean "auto".
+  function columnWidths() {
+    var raw = parseColumnMap(cfg.columnWidths);
+    var out = {};
+    Object.keys(raw).forEach(function (k) {
+      var n = parseFloat(raw[k]);
+      if (!isNaN(n) && n > 0) out[k] = Math.round(n);
+    });
+    return out;
+  }
+
+  // fieldName -> 'left' | 'center' | 'right' (anything else means auto)
+  function columnAligns() {
+    var raw = parseColumnMap(cfg.columnAligns);
+    var out = {};
+    Object.keys(raw).forEach(function (k) {
+      var v = String(raw[k] || '').toLowerCase();
+      if (v === 'left' || v === 'center' || v === 'right') out[k] = v;
+    });
+    return out;
+  }
+
+  function columnFontSizes() {
+    var raw = parseColumnMap(cfg.columnFontSizes);
+    var out = {};
+    Object.keys(raw).forEach(function (k) {
+      var n = parseFloat(raw[k]);
+      if (!isNaN(n) && n > 0) out[k] = n;
+    });
+    return out;
+  }
+
+  // Divider positions come from two places: automatically at each band
+  // boundary, and explicitly per column. The two are additive.
+  function dividerIndices() {
+    var out = {};
+    if (cfg.bandDividers) {
+      var at = 0;
+      bandRuns().forEach(function (r, i) {
+        if (i > 0) out[at] = true;
+        at += r.count;
+      });
+    }
+    var picked = parseColumnList(cfg.dividerCols);
+    if (picked.length) {
+      tableCols.forEach(function (c, i) {
+        if (i > 0 && picked.indexOf(c.fieldName) !== -1) out[i] = true;
+      });
+    }
+    return out;
+  }
+
+  // Text for a band cell, honouring the stacked/inline choice.
+  function bandText(r) {
+    if (!r.range) return r.label;
+    if (!r.label) return r.range;
+    return cfg.bandDateStyle === 'inline' ? r.label + '  (' + r.range + ')' : r.label;
+  }
+
+  /* =====================================================================
+     Conditional formatting
+
+     Rules are evaluated top to bottom and accumulate, so a later rule can
+     override an earlier one's weight or colour. Each rule targets all columns,
+     all numeric columns, or one named field.
+     ===================================================================== */
+  function parseRules(raw) {
+    try {
+      var a = JSON.parse(raw || '[]');
+      return Array.isArray(a) ? a : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  // Tolerant number extraction: prefers the raw value, falls back to the
+  // formatted string with currency, thousands separators, percent signs and
+  // accounting-style parentheses stripped.
+  function cellNumber(cell, fieldName) {
+    if (isNullCell(cell)) return cfg.nullDisplay === 'zero' ? 0 : null;
+    // Dates compare as timestamps; parseFloat on "08/02/26" would yield 8.
+    if ((colMeta[fieldName] || {}).isDate) {
+      var d = parseDateValue(cell);
+      return d ? d.getTime() : null;
+    }
+    var v = cell.value;
+    if (typeof v === 'number' && isFinite(v)) return v;
+    var t = (cell.formattedValue !== undefined && cell.formattedValue !== null && cell.formattedValue !== '')
+      ? String(cell.formattedValue)
+      : (v === null || v === undefined ? '' : String(v));
+    t = t.trim();
+    if (!t) return null;
+    var negative = /^\(.*\)$/.test(t);
+    t = t.replace(/[()]/g, '').replace(/[$,\s%]/g, '');
+    var n = parseFloat(t);
+    if (isNaN(n)) return null;
+    return negative ? -n : n;
+  }
+
+  function ruleApplies(rule, col) {
+    var t = rule.target || '*';
+    if (t === '*') return true;
+    if (t === '#numeric') return !!col.isNumeric;
+    return t === col.fieldName;
+  }
+
+  // A rule's comparison value is either typed in, or read from another field in
+  // the same row — which is how you express "this date is after that date".
+  function operandNumber(rule, col, row, which) {
+    var mode = which === 2 ? rule.v2mode : rule.v1mode;
+    var field = which === 2 ? rule.v2field : rule.v1field;
+    var raw = which === 2 ? rule.v2 : rule.v1;
+
+    if (mode === 'field') {
+      if (!field || !row) return NaN;
+      var c = cellOf(row, field);
+      var n = cellNumber(c, field);
+      return n === null ? NaN : n;
+    }
+    var t = String(raw === undefined || raw === null ? '' : raw).trim();
+    if (!t) return NaN;
+    // Typed values compare as dates when the target column holds dates.
+    if ((colMeta[col.fieldName] || {}).isDate) {
+      var d = parseLooseDate(t);
+      if (d) return d.getTime();
+    }
+    return parseFloat(t);
+  }
+
+  function operandText(rule, row) {
+    if (rule.v1mode === 'field' && rule.v1field && row) return displayOf(row, rule.v1field);
+    return String(rule.v1 || '');
+  }
+
+  function ruleMatches(rule, text, num, col, row) {
+    var a = operandNumber(rule, col, row, 1);
+    var b = operandNumber(rule, col, row, 2);
+    var operand = operandText(rule, row);
+    var lower = String(text || '').toLowerCase();
+    switch (rule.op) {
+      case 'negative':  return num !== null && num < 0;
+      case 'positive':  return num !== null && num > 0;
+      case 'zero':      return num !== null && num === 0;
+      case 'nonzero':   return num !== null && num !== 0;
+      case 'gt':        return num !== null && !isNaN(a) && num > a;
+      case 'gte':       return num !== null && !isNaN(a) && num >= a;
+      case 'lt':        return num !== null && !isNaN(a) && num < a;
+      case 'lte':       return num !== null && !isNaN(a) && num <= a;
+      case 'eq':        return num !== null && !isNaN(a) && num === a;
+      case 'neq':       return num !== null && !isNaN(a) && num !== a;
+      case 'between':   return num !== null && !isNaN(a) && !isNaN(b) &&
+                               num >= Math.min(a, b) && num <= Math.max(a, b);
+      case 'outside':   return num !== null && !isNaN(a) && !isNaN(b) &&
+                               (num < Math.min(a, b) || num > Math.max(a, b));
+      case 'contains':  return !!operand && lower.indexOf(operand.toLowerCase()) !== -1;
+      case 'textis':    return lower === operand.toLowerCase();
+      case 'blank':     return lower === '';
+      case 'notblank':  return lower !== '';
+      default:          return false;
+    }
+  }
+
+  var activeRules = [];
+
+  function refreshRules() {
+    activeRules = parseRules(cfg.cellRules).filter(function (r) { return r && r.op; });
+  }
+
+  // Returns null when nothing matched, so the common case allocates nothing.
+  function cellFormat(col, cell, text, row) {
+    if (!activeRules.length) return null;
+    var num = null, computed = false, out = null;
+    for (var i = 0; i < activeRules.length; i++) {
+      var rule = activeRules[i];
+      if (!ruleApplies(rule, col)) continue;
+      if (!computed) { num = cellNumber(cell, col.fieldName); computed = true; }
+      if (!ruleMatches(rule, text, num, col, row)) continue;
+      out = out || {};
+      if (rule.weight && rule.weight !== 'keep') out.weight = rule.weight;
+      if (rule.italic && rule.italic !== 'keep') out.italic = rule.italic;
+      if (rule.useColor) out.color = rule.color;
+      if (rule.useBg) out.bg = rule.bg;
+    }
+    return out;
+  }
+
+  function buildTableCols(encMap) {
+    tableCols = encMap.columns.filter(Boolean).map(function (f) {
+      var name = f.name;
+      var meta = colMeta[name] || {};
+      return {
+        fieldName: name,
+        label: name,
+        baseLabel: name,
+        labelOverridden: false,
+        hideHeader: false,
+        sublabel: null,
+        dateTitle: null,
+        isNumeric: !!meta.isNumeric
+      };
+    });
+    applyHeaderOverrides();
+    groupField = (cfg.showGroupBands && encMap.group) ? encMap.group.name : null;
+    applyDateHeaders();
+  }
+
+  /* =====================================================================
+     Filtering / sorting / paging
+     ===================================================================== */
+  function parseSortLevels() {
+    try {
+      var a = JSON.parse(cfg.sortLevels || '[]');
+      return Array.isArray(a) ? a : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  // Resolves #group to the live Group By field and drops levels for fields that
+  // aren't in the view, so a saved config survives a change of columns.
+  function resolveLevel(level) {
+    if (!level || !level.field) return null;
+    var field = level.field === GROUP_TOKEN ? groupField : level.field;
+    if (!field) return null;
+    if (field !== groupField && !tableCols.some(function (c) { return c.fieldName === field; })) return null;
+    return { field: field, dir: level.dir === 'desc' ? 'desc' : 'asc' };
+  }
+
+  // Group first (so bands stay contiguous), then whatever the user clicked,
+  // then the remaining configured levels as tiebreakers. Deduped by field.
+  function effectiveSort() {
+    var configured = parseSortLevels().map(resolveLevel).filter(Boolean);
+    var head = [];
+    if (cfg.groupSortFirst && groupField && configured.length &&
+        configured[0].field === groupField) {
+      head = [configured.shift()];
+    }
+    var seen = {};
+    var out = [];
+    head.concat(interactiveSort, configured).forEach(function (l) {
+      if (!l || !l.field || seen[l.field]) return;
+      seen[l.field] = true;
+      out.push(l);
+    });
+    return out;
+  }
+
+  function compareByField(a, b, field) {
+    var meta = colMeta[field] || {};
+    if (meta.isNumeric || meta.isDate) {
+      var av = cellNumber(cellOf(a, field), field);
+      var bv = cellNumber(cellOf(b, field), field);
+      if (av === null) av = -Infinity;
+      if (bv === null) bv = -Infinity;
+      return av === bv ? 0 : (av < bv ? -1 : 1);
+    }
+    return displayOf(a, field).localeCompare(
+      displayOf(b, field), undefined, { numeric: true, sensitivity: 'base' });
+  }
+
+  function sortLevelFor(fieldName) {
+    var levels = effectiveSort();
+    for (var i = 0; i < levels.length; i++) {
+      if (levels[i].field === fieldName) return { index: i, dir: levels[i].dir, of: levels.length };
+    }
+    return null;
+  }
+
+  function applyFilterAndSort() {
+    var term = searchTerm.trim().toLowerCase();
+    if (!term) {
+      filtered = rawRows.slice();
+    } else {
+      var searchFields = tableCols.map(function (c) { return c.fieldName; });
+      if (groupField) searchFields.push(groupField);
+      filtered = rawRows.filter(function (r) {
+        for (var i = 0; i < searchFields.length; i++) {
+          if (displayOf(r, searchFields[i]).toLowerCase().indexOf(term) !== -1) return true;
+        }
+        return false;
+      });
+    }
+
+    var levels = effectiveSort();
+    if (levels.length) {
+      // Decorate with the original index so the sort stays stable when every
+      // level ties — Tableau's own row order is the final tiebreaker.
+      var decorated = filtered.map(function (r, i) { return { r: r, i: i }; });
+      decorated.sort(function (x, y) {
+        for (var k = 0; k < levels.length; k++) {
+          var c = compareByField(x.r, y.r, levels[k].field);
+          if (c) return levels[k].dir === 'desc' ? -c : c;
+        }
+        return x.i - y.i;
+      });
+      filtered = decorated.map(function (d) { return d.r; });
+    }
+
+    var pc = pageCount();
+    page = clamp(page, 1, pc);
+  }
+
+  function perPage() { return Math.max(1, Math.round(cfg.rowsPerPage)); }
+  function pageCount() { return Math.max(1, Math.ceil(filtered.length / perPage())); }
+
+  function goTo(p) {
+    var pc = pageCount();
+    var next = clamp(Math.round(p), 1, pc);
+    if (next === page) return;
+    page = next;
+    render();
+    el.scroller.scrollTop = 0;
+  }
+
+  /* =====================================================================
+     Render — control bar
+     ===================================================================== */
+  function pageWindow(current, total, span) {
+    // Returns e.g. [1,'…',6,7,8,9,10,'…',42]
+    if (total <= span) {
+      var all = [];
+      for (var i = 1; i <= total; i++) all.push(i);
+      return all;
+    }
+    var inner = Math.max(1, span - 4);            // slots for the sliding middle
+    var start = clamp(current - Math.floor(inner / 2), 2, Math.max(2, total - inner));
+    var end = Math.min(total - 1, start + inner - 1);
+    var out = [1];
+    if (start > 2) out.push('…');
+    for (var p = start; p <= end; p++) out.push(p);
+    if (end < total - 1) out.push('…');
+    out.push(total);
+    return out;
+  }
+
+  function btn(label, title, disabled, onClick, cls) {
+    var b = document.createElement('button');
+    b.className = 'pt-btn' + (cls ? ' ' + cls : '');
+    b.textContent = label;
+    if (title) b.title = title;
+    b.disabled = !!disabled;
+    if (onClick) b.addEventListener('click', onClick);
+    return b;
+  }
+
+  function renderBar() {
+    var pc = pageCount();
+    el.bar.innerHTML = '';
+
+    el.bar.appendChild(btn('«', 'First page', page === 1, function () { goTo(1); }));
+    el.bar.appendChild(btn('‹', 'Previous page', page === 1, function () { goTo(page - 1); }));
+
+    if (cfg.showNumberedPages) {
+      var nums = document.createElement('span');
+      nums.id = 'pageNums';
+      pageWindow(page, pc, Math.max(5, Math.round(cfg.numberedWindow))).forEach(function (p) {
+        if (p === '…') {
+          var sp = document.createElement('span');
+          sp.className = 'pt-ellipsis';
+          sp.textContent = '…';
+          nums.appendChild(sp);
+        } else {
+          nums.appendChild(btn(String(p), 'Page ' + p, false,
+            (function (n) { return function () { goTo(n); }; })(p),
+            p === page ? 'active' : ''));
+        }
+      });
+      el.bar.appendChild(nums);
+    } else {
+      var st = document.createElement('span');
+      st.className = 'pt-status';
+      st.textContent = 'Page ' + page + ' of ' + pc;
+      el.bar.appendChild(st);
+    }
+
+    el.bar.appendChild(btn('›', 'Next page', page === pc, function () { goTo(page + 1); }));
+    el.bar.appendChild(btn('»', 'Last page', page === pc, function () { goTo(pc); }));
+
+    if (cfg.showNumberedPages) {
+      var st2 = document.createElement('span');
+      st2.className = 'pt-status';
+      st2.textContent = 'Page ' + page + ' of ' + pc;
+      el.bar.appendChild(st2);
+    }
+
+    if (cfg.showJump) {
+      el.bar.appendChild(sep());
+      var lbl = document.createElement('span');
+      lbl.className = 'pt-status';
+      lbl.textContent = 'Go to';
+      el.bar.appendChild(lbl);
+      var jb = document.createElement('input');
+      jb.id = 'jumpBox'; jb.type = 'number'; jb.min = '1'; jb.max = String(pc);
+      jb.value = String(page);
+      jb.title = 'Type a page number and press Enter';
+      jb.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { goTo(parseInt(jb.value, 10) || 1); }
+        e.stopPropagation();
+      });
+      jb.addEventListener('change', function () { goTo(parseInt(jb.value, 10) || 1); });
+      el.bar.appendChild(jb);
+    }
+
+    if (cfg.showRowsPerPage) {
+      el.bar.appendChild(sep());
+      var sel = document.createElement('select');
+      sel.id = 'rowsSel';
+      sel.title = 'Rows per page';
+      var opts = parseList(cfg.rowsPerPageOptions, [10, 25, 50, 100, 250]);
+      if (opts.indexOf(perPage()) === -1) opts.push(perPage());
+      opts.sort(function (a, b) { return a - b; });
+      opts.forEach(function (n) {
+        var o = document.createElement('option');
+        o.value = String(n); o.textContent = String(n);
+        if (n === perPage()) o.selected = true;
+        sel.appendChild(o);
+      });
+      sel.addEventListener('change', function () {
+        var firstRow = (page - 1) * perPage();
+        cfg.rowsPerPage = parseInt(sel.value, 10) || DEFAULTS.rowsPerPage;
+        page = Math.floor(firstRow / perPage()) + 1;   // keep the user near where they were
+        persist('rowsPerPage', cfg.rowsPerPage);
+        applyFilterAndSort();
+        render();
+      });
+      el.bar.appendChild(sel);
+      var rp = document.createElement('span');
+      rp.className = 'pt-status';
+      rp.textContent = 'rows';
+      el.bar.appendChild(rp);
+    }
+
+    var spacer = document.createElement('span');
+    spacer.className = 'pt-spacer';
+    el.bar.appendChild(spacer);
+
+    if (cfg.showSearch) {
+      var sb = document.createElement('input');
+      sb.id = 'searchBox'; sb.type = 'search'; sb.placeholder = 'Filter rows…';
+      sb.value = searchTerm;
+      sb.addEventListener('input', function () {
+        searchTerm = sb.value;
+        page = 1;
+        applyFilterAndSort();
+        renderTable();
+        updateBarStatus();
+      });
+      sb.addEventListener('keydown', function (e) { e.stopPropagation(); });
+      el.bar.appendChild(sb);
+    }
+
+    if (cfg.showTotals) {
+      var tot = document.createElement('span');
+      tot.className = 'pt-status';
+      tot.id = 'totals';
+      tot.textContent = totalsText();
+      el.bar.appendChild(tot);
+    }
+
+    if (cfg.showExport) {
+      el.bar.appendChild(btn('⤓ CSV', 'Download all filtered rows as CSV', false, exportCsv));
+    }
+
+    if (cfg.showPdf) {
+      var pdfBtn = btn('⤓ PDF', 'Download every filtered row as a paginated PDF', false, null);
+      pdfBtn.addEventListener('click', function () { exportPdf(pdfBtn); });
+      el.bar.appendChild(pdfBtn);
+    }
+
+    if (!isDemo) {
+      el.bar.appendChild(btn('⚙', 'Formatting & pagination settings', false, openSettings, ''))
+        .id = 'gearBtn';
+    } else {
+      var flag = document.createElement('span');
+      flag.className = 'pt-demo-flag';
+      flag.textContent = 'demo data — not connected to Tableau';
+      if (demoReason) flag.title = demoReason;
+      el.bar.appendChild(flag);
+    }
+  }
+
+  function sep() {
+    var s = document.createElement('span');
+    s.className = 'pt-sep';
+    return s;
+  }
+
+  function totalsText() {
+    if (!filtered.length) return '0 rows';
+    var start = (page - 1) * perPage() + 1;
+    var end = Math.min(filtered.length, page * perPage());
+    var t = start + '–' + end + ' of ' + filtered.length + ' rows';
+    if (searchTerm.trim() && filtered.length !== rawRows.length) t += ' (of ' + rawRows.length + ')';
+    return t;
+  }
+
+  function updateBarStatus() {
+    var t = document.getElementById('totals');
+    if (t) t.textContent = totalsText();
+    var jb = document.getElementById('jumpBox');
+    if (jb) { jb.value = String(page); jb.max = String(pageCount()); }
+  }
+
+  /* =====================================================================
+     Render — table
+     ===================================================================== */
+  function renderTable() {
+    el.host.innerHTML = '';
+
+    if (!tableCols.length) {
+      el.host.innerHTML = '<div class="pt-msg"><div class="pt-msg-inner">' +
+        '<h2>Add fields to build the table</h2>' +
+        'Drag the fields you want as columns onto the <code>Columns</code> shelf of the marks card ' +
+        '&mdash; they appear left to right in the order you drop them. ' +
+        'Optionally drop one dimension on <code>Group By</code> to get grouped header bands.' +
+        '</div></div>';
+      return;
+    }
+
+    var pp = perPage();
+    var startIdx = (page - 1) * pp;
+    var pageRows = filtered.slice(startIdx, startIdx + pp);
+
+    var table = document.createElement('table');
+    table.className = 'pt' + (cfg.wrapText ? '' : ' nowrap');
+
+    // ---- header ----
+    var thead = document.createElement('thead');
+    var runs = bandRuns();
+    var wantBandRow = showBandRow();
+
+    var divs = dividerIndices();
+    var widths = columnWidths();
+    var aligns = columnAligns();
+    var fontSizes = columnFontSizes();
+
+    // Every column's header cell, by column index, wherever it ends up living —
+    // frozen-column sizing needs these and they are no longer all in one row.
+    var headerCells = [];
+
+    function sizeCell(el, fieldName) {
+      var w = widths[fieldName];
+      if (!w) return false;
+      el.style.width = w + 'px';
+      el.style.minWidth = w + 'px';
+      el.style.maxWidth = w + 'px';
+      return true;
+    }
+
+    // Header alignment either mirrors the column or is forced globally.
+    function alignClass(fieldName, isHeader) {
+      var a = aligns[fieldName];
+      if (isHeader && cfg.headerAlign !== 'match') a = cfg.headerAlign;
+      return a ? ' al-' + a : '';
+    }
+
+    function makeLabelTh(c, ci) {
+      var th = document.createElement('th');
+      th.className = (c.isNumeric ? 'num' : '') + (divs[ci] ? ' band-start' : '') +
+        (sizeCell(th, c.fieldName) ? ' sized' : '') + alignClass(c.fieldName, true);
+      if (fontSizes[c.fieldName]) th.style.fontSize = fontSizes[c.fieldName] + 'px';
+      if (!c.hideHeader) {
+        th.appendChild(document.createTextNode(c.label));
+        if (c.sublabel) {
+          var sub = document.createElement('span');
+          sub.className = 'hdr-sub';
+          sub.textContent = c.sublabel;
+          th.appendChild(sub);
+        }
+      }
+      th.title = c.dateTitle || c.fieldName;
+
+      if (cfg.allowSort) {
+        th.className += ' sortable';
+        var lvl = cfg.showSortCaret ? sortLevelFor(c.fieldName) : null;
+        if (lvl) {
+          var car = document.createElement('span');
+          car.className = 'sort-caret';
+          // Number the carets only when the sort is actually nested.
+          car.textContent = (lvl.dir === 'asc' ? '\u25b2' : '\u25bc') +
+            (lvl.of > 1 ? String(lvl.index + 1) : '');
+          th.appendChild(car);
+        }
+        th.title = (c.dateTitle || c.fieldName) +
+          '  \u2014  click to sort, shift-click to add a sort level';
+        th.addEventListener('click', function (ev) {
+          var pos = -1;
+          for (var i = 0; i < interactiveSort.length; i++) {
+            if (interactiveSort[i].field === c.fieldName) { pos = i; break; }
+          }
+          if (pos === -1) {
+            // Plain click replaces the interactive sort; shift-click nests.
+            var entry = { field: c.fieldName, dir: 'asc' };
+            if (ev && ev.shiftKey) interactiveSort.push(entry);
+            else interactiveSort = [entry];
+          } else if (interactiveSort[pos].dir === 'asc') {
+            interactiveSort[pos].dir = 'desc';
+          } else {
+            interactiveSort.splice(pos, 1);   // third click drops this level
+          }
+          applyFilterAndSort();
+          render();
+        });
+      }
+      headerCells[ci] = th;
+      return th;
+    }
+
+    function makeBandTh(r, i) {
+      var bth = document.createElement('th');
+      bth.className = 'band-cell' + (cfg.bandWrap ? ' wrap' : '');
+      bth.colSpan = r.count;
+      if (!runHasContent(r)) bth.className += ' empty';
+      if (i > 0 && cfg.bandDividers) bth.className += ' spanned';
+
+      var twoLine = !!(r.range && r.label && cfg.bandDateStyle !== 'inline');
+
+      if (cfg.bandFitColumns) {
+        // A spanning cell's label participates in column sizing, so a long band
+        // name stretches the columns beneath it past their set widths. Taking
+        // the label out of flow makes the band exactly as wide as the columns
+        // it covers; a zero-width spacer keeps the row's height.
+        var spacer = document.createElement('span');
+        spacer.className = 'band-spacer';
+        spacer.appendChild(document.createTextNode('\u200b'));
+        if (twoLine) {
+          spacer.appendChild(document.createElement('br'));
+          spacer.appendChild(document.createTextNode('\u200b'));
+        }
+        bth.appendChild(spacer);
+
+        var inner = document.createElement('div');
+        inner.className = 'band-inner';
+        inner.appendChild(document.createTextNode(bandText(r)));
+        if (twoLine) {
+          var sub2 = document.createElement('span');
+          sub2.className = 'band-sub';
+          sub2.textContent = r.range;
+          inner.appendChild(sub2);
+        }
+        bth.appendChild(inner);
+      } else {
+        bth.appendChild(document.createTextNode(bandText(r)));
+        if (twoLine) {
+          var sub = document.createElement('span');
+          sub.className = 'band-sub';
+          sub.textContent = r.range;
+          bth.appendChild(sub);
+        }
+      }
+      if (runHasContent(r)) {
+        bth.title = (r.label || 'Date range') + ' \u2014 ' + r.count +
+          (r.count === 1 ? ' column' : ' columns') +
+          (r.rangeFull ? ', ' + r.rangeFull + ' across ' + r.datedCount + ' dated' : '');
+      }
+      return bth;
+    }
+
+    var htr = document.createElement('tr');
+    htr.className = 'labels';
+
+    if (wantBandRow) {
+      var btr = document.createElement('tr');
+      btr.className = 'bands';
+
+      if (cfg.showRowNumbers) {
+        var bnum = document.createElement('th');
+        bnum.className = 'rownum band-cell empty';
+        if (cfg.bandSpanUnbanded) bnum.rowSpan = 2;
+        else bnum.textContent = '';
+        btr.appendChild(bnum);
+        if (!cfg.bandSpanUnbanded) {
+          var thn0 = document.createElement('th');
+          thn0.className = 'rownum';
+          thn0.textContent = '#';
+          htr.appendChild(thn0);
+        } else {
+          bnum.className = 'rownum';
+          bnum.textContent = '#';
+        }
+      }
+
+      var at = 0;
+      runs.forEach(function (r, i) {
+        if (runHasContent(r) || !cfg.bandSpanUnbanded) {
+          btr.appendChild(makeBandTh(r, i));
+          for (var k = 0; k < r.count; k++) {
+            htr.appendChild(makeLabelTh(tableCols[at + k], at + k));
+          }
+        } else {
+          // No band over these columns: give each one the full header height so
+          // its label centres across both tiers instead of sitting under a gap.
+          for (var j = 0; j < r.count; j++) {
+            var th = makeLabelTh(tableCols[at + j], at + j);
+            th.rowSpan = 2;
+            th.className += ' spans-tiers' + (cfg.spanHeaderTop ? ' span-top' : '');
+            btr.appendChild(th);
+          }
+        }
+        at += r.count;
+      });
+      thead.appendChild(btr);
+    } else {
+      if (cfg.showRowNumbers) {
+        var thn = document.createElement('th');
+        thn.className = 'rownum';
+        thn.textContent = '#';
+        htr.appendChild(thn);
+      }
+      tableCols.forEach(function (c, ci) { htr.appendChild(makeLabelTh(c, ci)); });
+    }
+
+    table.__headerCells = headerCells;
+    thead.appendChild(htr);
+    table.appendChild(thead);
+
+    // ---- body ----
+    var tbody = document.createElement('tbody');
+    var colSpan = tableCols.length + (cfg.showRowNumbers ? 1 : 0);
+    var lastGroup = null;
+    var bandToggle = false;
+
+    // Was the first group on this page already open on the previous page?
+    var carriedOver = false;
+    if (groupField && startIdx > 0) {
+      var prev = filtered[startIdx - 1];
+      var first = pageRows[0];
+      if (prev && first) carriedOver = displayOf(prev, groupField) === displayOf(first, groupField);
+    }
+
+    // Row counts per group value (for the "(n)" suffix)
+    var groupCounts = null;
+    if (groupField && cfg.showGroupCounts) {
+      groupCounts = {};
+      filtered.forEach(function (r) {
+        var k = displayOf(r, groupField);
+        groupCounts[k] = (groupCounts[k] || 0) + 1;
+      });
+    }
+
+    pageRows.forEach(function (row, i) {
+      if (groupField) {
+        var gv = displayOf(row, groupField);
+        var isNew = gv !== lastGroup;
+        var isPageStart = i === 0;
+        if (isNew || (isPageStart && carriedOver && cfg.repeatGroupHeader)) {
+          var gtr = document.createElement('tr');
+          gtr.className = 'group';
+          var gtd = document.createElement('td');
+          gtd.colSpan = colSpan;
+          var ginner = document.createElement('div');
+          ginner.className = 'grp-inner';
+          ginner.appendChild(document.createTextNode((cfg.groupPrefix || '') + gv));
+          if (groupCounts) {
+            var gc = document.createElement('span');
+            gc.className = 'grp-count';
+            gc.textContent = '(' + groupCounts[gv] + ')';
+            ginner.appendChild(gc);
+          }
+          if (isPageStart && carriedOver) {
+            var cont = document.createElement('span');
+            cont.className = 'grp-cont';
+            cont.textContent = 'continued';
+            ginner.appendChild(cont);
+          }
+          gtd.appendChild(ginner);
+          gtr.appendChild(gtd);
+          tbody.appendChild(gtr);
+          if (isNew) bandToggle = false;
+        }
+        lastGroup = gv;
+      }
+
+      var tr = document.createElement('tr');
+      tr.className = 'data' + (cfg.banding && bandToggle ? ' banded' : '');
+      bandToggle = !bandToggle;
+
+      if (cfg.showRowNumbers) {
+        var tdn = document.createElement('td');
+        tdn.className = 'rownum';
+        tdn.textContent = String(startIdx + i + 1);
+        tr.appendChild(tdn);
+      }
+
+      tableCols.forEach(function (c, ci) {
+        var td = document.createElement('td');
+        var cls = (c.isNumeric ? 'num' : '') + (divs[ci] ? ' band-start' : '') +
+          alignClass(c.fieldName, false);
+        if (fontSizes[c.fieldName]) td.style.fontSize = fontSizes[c.fieldName] + 'px';
+        var txt = displayOf(row, c.fieldName);
+        var isSized = sizeCell(td, c.fieldName);
+        if (isSized) cls += ' sized';
+
+        if ((isSized || cfg.wrapText) && cfg.maxLines > 0) {
+          var clampBox = document.createElement('div');
+          clampBox.className = 'clamp';
+          clampBox.textContent = txt;
+          td.appendChild(clampBox);
+        } else {
+          td.textContent = txt;
+        }
+
+        var fmt = cellFormat(c, cellOf(row, c.fieldName), txt, row);
+        if (fmt) {
+          if (fmt.weight === 'bold') cls += ' cf-bold';
+          else if (fmt.weight === 'normal') cls += ' cf-normal';
+          if (fmt.italic === 'italic') cls += ' cf-italic';
+          else if (fmt.italic === 'normal') cls += ' cf-upright';
+          if (fmt.color) td.style.color = fmt.color;
+          if (fmt.bg) td.style.backgroundColor = fmt.bg;
+        }
+
+        td.className = cls;
+        if ((!cfg.wrapText || cfg.maxLines > 0) && txt.length > 18) td.title = txt;
+        tr.appendChild(td);
+      });
+
+      if (cfg.selectOnClick && !isDemo) {
+        tr.addEventListener('click', function () {
+          Array.prototype.forEach.call(tbody.querySelectorAll('tr.selected'), function (x) {
+            x.classList.remove('selected');
+          });
+          tr.classList.add('selected');
+          selectRowInTableau(row);
+        });
+      }
+
+      tbody.appendChild(tr);
+    });
+
+    table.appendChild(tbody);
+    el.host.appendChild(table);
+
+    // These measure rendered geometry, so they must run after the table is in
+    // the document — not while it is still detached.
+    fitBandHeights(table);
+    stackStickyHeader(table);
+    applyFrozenColumns(table);
+  }
+
+  // The band label is absolutely positioned so it cannot widen the columns,
+  // which means the cell has no idea how tall a wrapped label needs to be.
+  // Measure the laid-out label and grow the cell to match.
+  function fitBandHeights(table) {
+    if (!cfg.bandWrap || !cfg.bandFitColumns) return;
+    var cells = table.querySelectorAll('thead tr.bands th.band-cell .band-inner');
+    var needed = 0;
+    Array.prototype.forEach.call(cells, function (inner) {
+      needed = Math.max(needed, inner.scrollHeight);
+    });
+    if (!needed) return;
+    // +1 keeps this in step with the extra pixel the band padding adds when the
+    // height is left to the content.
+    var pad = 2 * Math.max(0, Math.round(cfg.rowPad)) + 1;
+    Array.prototype.forEach.call(
+      table.querySelectorAll('thead tr.bands th.band-cell'),
+      function (th) { th.style.height = (needed + pad) + 'px'; }
+    );
+  }
+
+  // With a band row present the label row can't also sit at top:0 — offset it
+  // by the band row's measured height so both tiers stay pinned.
+  function stackStickyHeader(table) {
+    var bandRow = table.querySelector('thead tr.bands');
+    var labelRow = table.querySelector('thead tr.labels');
+    if (!labelRow) return;
+    var offset = bandRow ? bandRow.getBoundingClientRect().height : 0;
+    Array.prototype.forEach.call(labelRow.children, function (th) {
+      th.style.top = offset + 'px';
+    });
+  }
+
+  // Sticky-position the first N columns.
+  function applyFrozenColumns(table) {
+    var n = clamp(Math.round(cfg.freezeCols), 0, tableCols.length);
+    if (!n) return;
+    var offsetCols = cfg.showRowNumbers ? n + 1 : n;
+    var widths = [];
+    // Built during render: a column's header cell may sit in either tier, so a
+    // row-based query would miss the ones that span both.
+    var headCells = (table.__headerCells || []).filter(Boolean);
+    if (cfg.showRowNumbers) {
+      var rn = table.querySelector('thead th.rownum');
+      if (rn) headCells = [rn].concat(headCells);
+    }
+    for (var i = 0; i < offsetCols && i < headCells.length; i++) {
+      widths.push(headCells[i].getBoundingClientRect().width);
+    }
+    function stick(cells) {
+      var left = 0;
+      for (var i = 0; i < offsetCols && i < cells.length; i++) {
+        cells[i].classList.add('frozen');
+        if (i === offsetCols - 1) cells[i].classList.add('last-frozen');
+        cells[i].style.left = left + 'px';
+        left += widths[i] || 0;
+      }
+    }
+    stick(headCells);
+
+    // A band cell can only be pinned when its whole span is inside the frozen
+    // range; a band straddling the boundary is left to scroll. Cells that span
+    // both tiers are already handled above via the header-cell map.
+    var bandRow = table.querySelector('thead tr.bands');
+    if (bandRow) {
+      var left = 0, covered = 0;
+      Array.prototype.forEach.call(bandRow.querySelectorAll('th.band-cell'), function (th) {
+        var span = th.colSpan || 1;
+        if (covered + span > offsetCols) return;
+        th.classList.add('frozen');
+        th.style.left = left + 'px';
+        for (var k = covered; k < covered + span; k++) left += widths[k] || 0;
+        covered += span;
+      });
+    }
+
+    Array.prototype.forEach.call(table.querySelectorAll('tbody tr.data'), function (tr) {
+      stick(tr.children);
+    });
+  }
+
+  function render() {
+    refreshRules();
+    applyTheme();
+    renderBar();
+    renderTable();
+    updateBarStatus();
+  }
+
+  /* =====================================================================
+     Transient messages (alert() can be blocked inside Tableau's iframe)
+     ===================================================================== */
+  var toastTimer = null;
+  function toast(msg, isError) {
+    var existing = el.bar.querySelector('.pt-toast');
+    if (existing) existing.parentNode.removeChild(existing);
+    var t = document.createElement('span');
+    t.className = 'pt-toast' + (isError ? ' err' : '');
+    t.textContent = msg;
+    el.bar.appendChild(t);
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () {
+      if (t.parentNode) t.parentNode.removeChild(t);
+    }, 6000);
+  }
+
+  function downloadBlob(blob, filename) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+
+  function stamp() {
+    var d = new Date();
+    return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+  }
+
+  function slug(str) {
+    return String(str || 'report').trim().replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-|-$/g, '') || 'report';
+  }
+
+  function hexToRgb(hex) {
+    var h = String(hex || '').replace('#', '');
+    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    var n = parseInt(h, 16);
+    if (isNaN(n) || h.length !== 6) return [255, 255, 255];
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+
+  /* =====================================================================
+     PDF export — every filtered row, paginated, headers repeated
+
+     jsPDF is loaded on demand rather than up front: 400KB of blocking script
+     would delay initializeAsync past Tableau's handshake timeout.
+     ===================================================================== */
+  var pdfLibsLoading = null;
+
+  function loadScriptOnce(src) {
+    return new Promise(function (resolve, reject) {
+      var sc = document.createElement('script');
+      sc.src = src;
+      sc.async = false;
+      sc.onload = function () { resolve(); };
+      sc.onerror = function () { reject(new Error('could not load ' + src)); };
+      document.head.appendChild(sc);
+    });
+  }
+
+  function pdfReady() {
+    return !!(window.jspdf && window.jspdf.jsPDF);
+  }
+
+  function ensurePdfLibs() {
+    if (pdfReady()) return Promise.resolve(true);
+    if (!pdfLibsLoading) {
+      pdfLibsLoading = loadScriptOnce('jspdf.umd.min.js')
+        .then(function () { return loadScriptOnce('jspdf.plugin.autotable.min.js'); })
+        .then(function () { return pdfReady(); })
+        .catch(function (err) {
+          console.log('PDF libraries failed: ' + err);
+          pdfLibsLoading = null;
+          return false;
+        });
+    }
+    return pdfLibsLoading;
+  }
+
+  function exportPdf(btn) {
+    if (!tableCols.length) { toast('Nothing to export yet.', true); return; }
+    if (btn) { btn.disabled = true; btn.textContent = '\u2026 PDF'; }
+    ensurePdfLibs().then(function (ok) {
+      if (btn) { btn.disabled = false; btn.textContent = '\u2913 PDF'; }
+      if (!ok) {
+        toast('PDF libraries missing \u2014 keep jspdf.umd.min.js and ' +
+              'jspdf.plugin.autotable.min.js next to index.html.', true);
+        return;
+      }
+      try {
+        buildPdf();
+      } catch (err) {
+        console.log(err);
+        toast('PDF failed: ' + (err && err.message ? err.message : err), true);
+      }
+    });
+  }
+
+  /* jsPDF only ships the three core PDF font families, so the CSS stack is
+     mapped onto the nearest one rather than embedded. */
+  function pdfFontFamily() {
+    var f = String(cfg.fontFamily || '').toLowerCase();
+    if (/courier|monaco|consolas|monospace/.test(f)) return 'courier';
+    if (/sans-serif|helvetica|arial|roboto|segoe|system/.test(f)) return 'helvetica';
+    if (/georgia|times|garamond|cambria|serif/.test(f)) return 'times';
+    return 'helvetica';
+  }
+
+  /* The PDF has its own base font size in points, deliberately smaller than the
+     on-screen pixel size. Per-column and band sizes are therefore carried over
+     as RATIOS against their on-screen base, so "this column is 20% bigger than
+     the rest" survives even though the absolute numbers do not. */
+  function pdfScaled(px, screenBase, pdfBase) {
+    var b = parseFloat(screenBase);
+    var n = parseFloat(px);
+    if (!b || !n || b <= 0 || n <= 0) return pdfBase;
+    return Math.max(4, Math.round(pdfBase * (n / b) * 10) / 10);
+  }
+
+  function pdfVAlign(v) {
+    return (v === 'top' || v === 'bottom') ? v : 'middle';
+  }
+
+  function buildPdf() {
+    var jsPDFCtor = window.jspdf.jsPDF;
+    function newDoc() {
+      return new jsPDFCtor({
+        orientation: cfg.pdfOrientation === 'portrait' ? 'portrait' : 'landscape',
+        unit: 'pt',
+        format: cfg.pdfPageSize || 'legal'
+      });
+    }
+    var doc = newDoc();
+    if (typeof doc.autoTable !== 'function') {
+      throw new Error('the autoTable plugin did not attach to jsPDF');
+    }
+
+    var title = String(cfg.pdfTitle || '').trim() || sheetName || 'Paginated Table';
+    var margin = Math.max(8, Math.round(cfg.pdfMargin));
+
+    // Optional logo, sitting above the title block. Its aspect ratio was
+    // recorded when the file was chosen, so the width follows from the height
+    // without having to decode the image here.
+    var logo = String(cfg.pdfImage || '');
+    var logoOk = logo.indexOf('data:image') === 0;
+    var logoH = logoOk ? Math.max(8, Math.round(cfg.pdfImageHeight)) : 0;
+    var logoAspect = parseFloat(cfg.pdfImageAspect) || 1;
+    var logoW = logoH ? Math.round(logoH * logoAspect) : 0;
+    var logoGap = logoH ? 8 : 0;
+
+    var titleBand = 30 + logoH + logoGap;   // vertical space above the table
+
+    /* Space kept clear at the foot of the page. The footer line sits at
+       pageH - margin + 8 in ~7.5pt type, so its ink starts about 6pt above
+       pageH - margin; reserving margin + 8 leaves the table a clear run down to
+       just above it instead of stopping 18pt short and wasting most of a row. */
+    var footReserve = margin + 8;
+
+    /* Divider weight, px -> pt on the same 0.75 as widths and type, then taken
+       to a whole point: a fractional weight lands on a fraction of a device
+       pixel and viewers round it up at one column and down at the next. */
+    var dividerPt = Math.max(1, Math.round(cfg.dividerWidth * 0.75));
+    /* Gridlines use the same px->pt conversion as everything else, so a 1px
+       rule on screen prints as 0.75pt. 0 means no gridlines at all, which
+       autoTable honours by not stroking the cell boxes. Anything above 0 is
+       floored at a hairline so a small value cannot vanish in print. */
+    var borderPx = Number(cfg.borderWidth);
+    if (!isFinite(borderPx) || borderPx < 0) borderPx = 1;
+    var borderPt = borderPx === 0 ? 0 : Math.max(0.1, borderPx * 0.75);
+
+    var pdfFont = pdfFontFamily();
+
+    /* Base type size. Matching means the Type tab drives the PDF as well as the
+       view — pixels convert to points at 0.75, the same ratio used for column
+       widths — so changing the size in one place changes both. It also makes
+       pdfScaled() below resolve to a plain px→pt conversion, since the base it
+       divides by is the very size it is scaling from. Unmatched, the PDF keeps
+       its own absolute point sizes from the PDF tab. */
+    var matchFonts = cfg.pdfFontMatch !== false && String(cfg.pdfFontMatch) !== 'false';
+    var bodyPt = Math.max(4, (matchFonts ? (parseFloat(cfg.bodySize) || 12) * 0.75
+                                         : parseFloat(cfg.pdfFontSize)) || 7);
+    var headPt = Math.max(4, (matchFonts ? (parseFloat(cfg.headSize) || 12) * 0.75
+                                         : parseFloat(cfg.pdfHeaderFontSize)) || 7);
+    var pdfAligns = columnAligns();
+    var pdfSizes = columnFontSizes();
+    var headBold = (parseInt(cfg.headWeight, 10) || 600) >= 600 ? 'bold' : 'normal';
+    var bodyBold = (parseInt(cfg.bodyWeight, 10) || 400) >= 600 ? 'bold' : 'normal';
+
+    // Header alignment mirrors the screen: a global override, or the column's
+    // own alignment when the user chose "match the column".
+    function headAlignFor(c) {
+      if (cfg.headerAlign === 'left' || cfg.headerAlign === 'right' || cfg.headerAlign === 'center') {
+        return cfg.headerAlign;
+      }
+      return pdfAligns[c.fieldName] || (c.isNumeric ? 'right' : 'left');
+    }
+
+    // ---- header rows (two lines when date labels are appended) ----
+    // Rebuilt per pass because every font size in here is multiplied by the
+    // fit-to-width scale worked out from the measurement pass.
+    var pdfRuns = bandRuns();
+    var pdfWantBandRow = cfg.showHeaderBands && pdfRuns.some(runHasContent);
+
+    function buildHeadRows(scale) {
+      function labelCell(c, spans) {
+        var st = {
+          halign: headAlignFor(c),
+          valign: spans && cfg.spanHeaderTop ? 'top' : pdfVAlign(cfg.headerVAlign),
+          fontStyle: headBold
+        };
+        if (pdfSizes[c.fieldName]) {
+          st.fontSize = pdfScaled(pdfSizes[c.fieldName], cfg.headSize, headPt) * scale;
+        }
+        var cell = {
+          content: c.hideHeader ? '' : (c.sublabel ? c.label + '\n' + c.sublabel : c.label),
+          styles: st
+        };
+        if (spans) cell.rowSpan = 2;
+        return cell;
+      }
+
+      if (!pdfWantBandRow) {
+        var flat = tableCols.map(function (c) { return labelCell(c, false); });
+        if (cfg.showRowNumbers) {
+          flat.unshift({ content: '#', styles: { halign: 'right', valign: pdfVAlign(cfg.headerVAlign) } });
+        }
+        return [flat];
+      }
+
+      // Two tiers. A run with no band name gives each of its columns a cell that
+      // spans both tiers, exactly as the on-screen table does — otherwise those
+      // columns carry a strip of empty grey above a heading stranded halfway
+      // down the block.
+      var bandPt = pdfScaled(cfg.bandFontSize, cfg.headSize, headPt) * scale;
+      var bandRowCells = [];
+      var labelRowCells = [];
+
+      if (cfg.showRowNumbers) {
+        if (cfg.bandSpanUnbanded) {
+          bandRowCells.push({
+            content: '#', rowSpan: 2,
+            styles: { halign: 'right', valign: cfg.spanHeaderTop ? 'top' : pdfVAlign(cfg.headerVAlign) }
+          });
+        } else {
+          bandRowCells.push({ content: '', styles: { fillColor: hexToRgb(cfg.headBg) } });
+          labelRowCells.push({ content: '#', styles: { halign: 'right', valign: pdfVAlign(cfg.headerVAlign) } });
+        }
+      }
+
+      var at = 0;
+      pdfRuns.forEach(function (r) {
+        if (runHasContent(r) || !cfg.bandSpanUnbanded) {
+          var text = bandText(r);
+          if (r.range && r.label && cfg.bandDateStyle !== 'inline') text += '\n' + r.range;
+          bandRowCells.push({
+            content: text,
+            colSpan: r.count,
+            styles: {
+              halign: cfg.bandAlign === 'left' ? 'left' : (cfg.bandAlign === 'right' ? 'right' : 'center'),
+              valign: pdfVAlign(cfg.bandVAlign),
+              fontSize: bandPt,
+              // The extra 0.375pt each side is the 1px the band row gets on
+              // screen, converted at the usual 0.75.
+              cellPadding: {
+                top: (headPadY + 0.375) * scale, bottom: (headPadY + 0.375) * scale,
+                left: padX * scale, right: padX * scale
+              },
+              fillColor: hexToRgb(runHasContent(r) ? cfg.bandBg : cfg.headBg),
+              textColor: hexToRgb(cfg.bandText),
+              fontStyle: 'bold'
+            }
+          });
+          for (var k = 0; k < r.count; k++) labelRowCells.push(labelCell(tableCols[at + k], false));
+        } else {
+          for (var j = 0; j < r.count; j++) bandRowCells.push(labelCell(tableCols[at + j], true));
+        }
+        at += r.count;
+      });
+
+      return [bandRowCells, labelRowCells];
+    }
+
+    // ---- body, with group bands as full-width spanning rows ----
+    var groupCounts = null;
+    if (groupField && cfg.showGroupCounts) {
+      groupCounts = {};
+      filtered.forEach(function (r) {
+        var k = displayOf(r, groupField);
+        groupCounts[k] = (groupCounts[k] || 0) + 1;
+      });
+    }
+
+    var groupStyles = [];  // style objects of the group rows, rescaled per pass
+    var bodyCells = [];    // every data cell, for the max-lines clamp
+    // Both are reset and refilled once the pages are known — see packPages().
+    var headColCount = tableCols.length + (cfg.showRowNumbers ? 1 : 0);
+
+    function dataRow(r, i) {
+      var row = [];
+      if (cfg.showRowNumbers) row.push({ content: String(i + 1), styles: {} });
+      tableCols.forEach(function (c) {
+        var txt = displayOf(r, c.fieldName);
+        var fmt = cellFormat(c, cellOf(r, c.fieldName), txt, r);
+        var st = {};
+        if (fmt) {
+          if (fmt.weight === 'bold') st.fontStyle = fmt.italic === 'italic' ? 'bolditalic' : 'bold';
+          else if (fmt.italic === 'italic') st.fontStyle = 'italic';
+          else if (fmt.weight === 'normal' || fmt.italic === 'normal') st.fontStyle = 'normal';
+          if (fmt.color) st.textColor = hexToRgb(fmt.color);
+          if (fmt.bg) st.fillColor = hexToRgb(fmt.bg);
+        }
+        row.push({ content: txt, styles: st });
+      });
+      bodyCells.push(row);
+      return row;
+    }
+
+    function groupRow(label) {
+      var gst = {
+        fillColor: hexToRgb(cfg.groupBg),
+        textColor: hexToRgb(cfg.groupText),
+        fontStyle: 'bold',
+        fontSize: pdfScaled(cfg.groupFontSize, cfg.bodySize, bodyPt),
+        halign: 'left'
+      };
+      groupStyles.push(gst);
+      return [{ content: label, colSpan: headColCount, styles: gst }];
+    }
+
+    function groupLabel(r, continued) {
+      var gv = displayOf(r, groupField);
+      var label = (cfg.groupPrefix || '') + gv;
+      if (groupCounts) label += '  (' + groupCounts[gv] + ')';
+      if (continued) label += '  ·  continued';
+      return label;
+    }
+
+    /* Build one page's worth of rows, mirroring the on-screen page exactly:
+       N data rows, a band whenever the group changes, and — when the setting is
+       on — the band repeated at the top of a page that carries a group over.
+       `slice` is the data rows; `startIdx` is where they sit in `filtered`. */
+    function buildBody(slice, startIdx, repeatCarriedBand) {
+      var out = [];
+      var meta = [];        // per emitted row: {group, isBand}
+      var lastG = null;
+      var carried = false;
+      if (groupField && startIdx > 0 && slice.length) {
+        carried = displayOf(filtered[startIdx - 1], groupField) === displayOf(slice[0], groupField);
+      }
+      var wantCarriedBand = carried && cfg.repeatGroupHeader && repeatCarriedBand !== false;
+      slice.forEach(function (r, i) {
+        if (groupField && cfg.pdfIncludeGroups) {
+          var gv = displayOf(r, groupField);
+          // The first row of a page continues the previous page's group, so its
+          // band is a repeat: emit it only if there is room. Every other change
+          // of group opens a new band as usual.
+          var wantBand = (i === 0 && carried) ? wantCarriedBand : gv !== lastG;
+          if (wantBand) {
+            var label = groupLabel(r, i === 0 && carried);
+            out.push(groupRow(label));
+            meta.push({ group: label, isBand: true });
+          }
+          lastG = gv;
+        }
+        out.push(dataRow(r, startIdx + i));
+        meta.push({
+          group: groupField ? (cfg.groupPrefix || '') + displayOf(r, groupField) : null,
+          isBand: false
+        });
+      });
+      return { body: out, meta: meta };
+    }
+
+    var matchMode = cfg.pdfRowsMode === 'match';
+
+    /* The probe lays every row out in one continuous table. That gives the
+       column widths all pages will share — measuring a single page's worth would
+       let page 2 drift from page 1 — and the height of each individual row,
+       which is what the page packing below needs. */
+    var continuous = buildBody(filtered, 0);
+    var probeBody = continuous.body;
+
+    // Filled in after the probe: rows to put on each page.
+    var chunks = [];
+
+    // Row padding is a pixel setting on screen; halved it lands on the old
+    // default of 2pt at the default 4px, so existing PDFs are unchanged.
+    var padY = Math.max(0.5, cfg.rowPad * 0.5);
+    var padX = padY;
+    var headPadY = Math.max(1, cfg.rowPad);
+
+    var offset = cfg.showRowNumbers ? 1 : 0;
+    var pdfWidths = columnWidths();
+    // Off, the screen truncates unsized columns with an ellipsis rather than
+    // wrapping them; the PDF follows suit. Sized columns always wrap, both here
+    // and on screen, because that is the point of giving one a width.
+    var autoOverflow = cfg.wrapText ? 'linebreak' : 'ellipsize';
+
+    // `pin` is the measured width of every column from the probe pass. It is
+    // supplied only once the body text has been clamped to a line limit, so the
+    // clamp and the final layout are computed against the same widths.
+    function buildColStyles(scale, pin) {
+      var colStyles = {};
+      if (cfg.showRowNumbers) colStyles[0] = { halign: 'right', cellWidth: 22 * scale };
+      tableCols.forEach(function (c, i) {
+        var st = {};
+        // Explicit alignment wins over the numbers-right default, same as on screen.
+        st.halign = pdfAligns[c.fieldName] || (c.isNumeric ? 'right' : 'left');
+        // px -> pt so on-screen widths carry across at roughly the same ratio.
+        if (pdfWidths[c.fieldName]) {
+          st.cellWidth = pdfWidths[c.fieldName] * 0.75 * scale;
+          st.overflow = 'linebreak';
+        } else {
+          st.overflow = autoOverflow;
+        }
+        // Min column width is deliberately NOT carried over: the screen can scroll
+        // sideways, a page cannot, and a floor of 70px across 20+ columns would
+        // push the table off the paper.
+        if (pdfSizes[c.fieldName]) {
+          st.fontSize = pdfScaled(pdfSizes[c.fieldName], cfg.bodySize, bodyPt) * scale;
+        }
+        if (pin && pin[i + offset]) st.cellWidth = pin[i + offset];
+        colStyles[i + offset] = st;
+      });
+      return colStyles;
+    }
+
+    var pageW = doc.internal.pageSize.getWidth();
+    var pageH = doc.internal.pageSize.getHeight();
+    var pdfDividers = dividerIndices();
+
+    var subtitleBits = [];
+    if (anchorDate && cfg.dateHeaders) subtitleBits.push('Through ' + fmtDate(anchorDate, 'mm/dd/yy'));
+    if (searchTerm.trim()) subtitleBits.push('Filter: \u201c' + searchTerm.trim() + '\u201d');
+    if (cfg.pdfShowRowCount) {
+      // "368 rows" is only right when the rows are rows. A schedule counts homes,
+      // a punch list counts items, so the noun is the user's to set.
+      var one = cfg.pdfRowWord === undefined ? 'row' : String(cfg.pdfRowWord).trim();
+      var many = cfg.pdfRowWordPlural === undefined ? 'rows' : String(cfg.pdfRowWordPlural).trim();
+      var word = filtered.length === 1 ? one : many;
+      subtitleBits.push(filtered.length + (word ? ' ' + word : ''));
+    }
+    if (String(cfg.pdfNote || '').trim()) subtitleBits.push(String(cfg.pdfNote).trim());
+    var subtitle = subtitleBits.join('  \u00b7  ');
+
+    /* One continuous rule per divider per page, drawn after the page's cells.
+       Drawing it per cell instead left it broken wherever a row spanned the full
+       width — every group band punched a hole in every divider, which is what
+       made them look like they faded in and out. Filled rectangles on whole-point
+       geometry: viewers snap thin marks to the device pixel grid, and identical
+       geometry snaps identically, so no rule comes out lighter than another. */
+    function drawDividers(g) {
+      if (!g || !isFinite(g.top) || g.bottom <= g.top) return;
+      var idxs = Object.keys(g.xs);
+      if (!idxs.length) return;
+      var rgb = hexToRgb(cfg.dividerColor);
+      doc.saveGraphicsState();
+      doc.setFillColor(rgb[0], rgb[1], rgb[2]);
+      idxs.forEach(function (k) {
+        // Centred on the column boundary exactly, not rounded to a whole point.
+        // Rounding made every rule snap to the pixel grid the same way, but it
+        // also let the rule sit up to half a point off the boundary it belongs
+        // to — so it no longer lined up with the header separators and the band
+        // edges above it, and the whole rule read as slightly out of true.
+        // Sitting on the boundary matters more than matching pixel phase.
+        doc.rect(g.xs[k] - dividerPt / 2, g.top, dividerPt, g.bottom - g.top, 'F');
+      });
+      doc.restoreGraphicsState();
+    }
+
+    function optionsFor(scale, silent, pin, chunk) {
+      var meta = (chunk && chunk.meta) || [];
+      var firstBodyRowByPage = {};
+      var pageGeom = {};
+      return {
+      head: buildHeadRows(scale),
+      body: (chunk && chunk.body) || probeBody,
+      startY: margin + titleBand,
+      margin: { top: margin + titleBand, right: margin, bottom: footReserve, left: margin },
+      tableWidth: 'auto',
+      // Never let a wrapped row be sliced by a page break. autoTable's default
+      // prints as many lines as fit and continues the rest at the top of the
+      // next page, which reads as an orphaned fragment under the repeated
+      // header. 'avoid' moves the whole row down instead.
+      rowPageBreak: 'avoid',
+      theme: 'grid',
+      styles: {
+        font: pdfFont,
+        fontSize: bodyPt * scale,
+        fontStyle: bodyBold,
+        cellPadding: padY * scale,
+        overflow: 'linebreak',
+        lineColor: hexToRgb(cfg.border),
+        lineWidth: borderPt,
+        textColor: hexToRgb(cfg.text)
+      },
+      headStyles: {
+        fontSize: headPt * scale,
+        fillColor: hexToRgb(cfg.headBg),
+        textColor: hexToRgb(cfg.headText),
+        fontStyle: headBold,
+        valign: pdfVAlign(cfg.headerVAlign),
+        // Headings need more air above and below than data rows do — a band
+        // name wrapped onto three lines otherwise sits with its capitals a
+        // hair off the rule above it and reads as clipped. The screen gives a
+        // band cell twice the row padding; this matches that.
+        cellPadding: {
+          top: headPadY * scale, bottom: headPadY * scale,
+          left: padX * scale, right: padX * scale
+        },
+        lineColor: hexToRgb(cfg.border),
+        lineWidth: borderPt
+      },
+      alternateRowStyles: cfg.banding ? { fillColor: hexToRgb(cfg.band) } : { fillColor: false },
+      columnStyles: buildColStyles(scale, pin),
+      willDrawCell: function (data) {
+        if (silent) return;
+        /* Collect what the dividers need: the vertical extent of everything
+           drawn on this page and, for each divider column, its left edge. Only
+           cells that span a single column give the true boundary — a merged band
+           reports the start of its whole span. */
+        var g = pageGeom[data.pageNumber] ||
+                (pageGeom[data.pageNumber] = { top: Infinity, bottom: -Infinity, xs: {} });
+        if (data.cell.y < g.top) g.top = data.cell.y;
+        var below = data.cell.y + data.cell.height;
+        if (below > g.bottom) g.bottom = below;
+        var idx = data.column.index - (cfg.showRowNumbers ? 1 : 0);
+        if (pdfDividers[idx] && data.cell.colSpan === 1 && g.xs[idx] === undefined) {
+          g.xs[idx] = data.cell.x;
+        }
+        if (data.section !== 'body') return;
+        if (firstBodyRowByPage[data.pageNumber] === undefined) {
+          firstBodyRowByPage[data.pageNumber] = data.row.index;
+        }
+      },
+      didDrawPage: function (data) {
+        if (silent) return;
+        var physical = doc.getNumberOfPages();
+        drawDividers(pageGeom[data.pageNumber]);
+        // A page that opens partway through a group and did not get a repeated
+        // band of its own is named in the header area instead.
+        var firstIdx = firstBodyRowByPage[data.pageNumber];
+        var noBandCarry = chunk && chunk.carriedWithoutBand && data.pageNumber === 1 && firstIdx === 0;
+        if (firstIdx !== undefined && (firstIdx > 0 || noBandCarry) && meta[firstIdx] &&
+            !meta[firstIdx].isBand && meta[firstIdx].group) {
+          doc.setFont('helvetica', 'italic');
+          doc.setFontSize(8);
+          doc.setTextColor(110, 110, 110);
+          doc.text(meta[firstIdx].group + '  ·  continued', pageW - margin,
+                   margin + logoH + logoGap + 24, { align: 'right' });
+        }
+        drawPageHeader(physical);
+      }
+      };
+    }
+
+    // Logo and title block. Drawn from didDrawPage so it lands on every page
+    // autoTable opens, including the extra ones a long chunk spills onto.
+    function drawPageHeader(physicalPage) {
+      var first = physicalPage === 1;
+      if (logoH && (first || cfg.pdfImageRepeat)) {
+        var lx = margin;
+        if (cfg.pdfImageAlign === 'center') lx = (pageW - logoW) / 2;
+        else if (cfg.pdfImageAlign === 'right') lx = pageW - margin - logoW;
+        try {
+          doc.addImage(logo, lx, margin, logoW, logoH);
+        } catch (e) {
+          // A corrupt or unsupported data URL must not sink the whole export.
+        }
+      }
+      if (!first && !cfg.pdfRepeatTitle) return;
+      var top = margin + logoH + logoGap;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      var tc = hexToRgb(cfg.text);
+      doc.setTextColor(tc[0], tc[1], tc[2]);
+      doc.text(title, margin, top + 12);
+      if (subtitle) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(110, 110, 110);
+        doc.text(subtitle, margin, top + 24);
+      }
+    }
+
+    /* ---- fit the table to a single page width -------------------------
+       autoTable spreads columns across the available width on its own, but a
+       column can refuse to shrink past the widest unbreakable word (or past an
+       explicit width), and once the sum of those floors exceeds the paper the
+       table runs off the right edge. So: lay the table out once into a throwaway
+       document, measure what it actually used, and if that overflows, redo it
+       with every font size, padding and width multiplied by the shortfall.
+       Widths scale linearly with type size, so one correction is exact. */
+    var avail = pageW - 2 * margin;
+    var scale = 1;
+    var measuredCols = null;
+
+    // autoTable's hard floor is the explicit width of a sized column and 10pt
+    // for an auto one. When those floors already add up to less than the page,
+    // the layout physically cannot overflow, so the measurement pass — which
+    // costs a second full render — is skipped.
+    var floorSum = cfg.showRowNumbers ? 22 : 0;
+    tableCols.forEach(function (c) {
+      floorSum += pdfWidths[c.fieldName] ? pdfWidths[c.fieldName] * 0.75 : 10;
+    });
+    var canOverflow = floorSum > avail;
+    // More than one page means more than one autoTable call, and each would size
+    // its own columns from its own rows. Measuring once and pinning the result is
+    // what keeps every page's grid identical.
+    var needMeasure = (cfg.pdfFitWidth && canOverflow) || cfg.maxLines > 0 || matchMode;
+    var rowHeights = null;    // height of each data row, indexed like `filtered`
+    var bandHeight = 0;       // height of a group band row
+    var availH = 0;           // printable height for body rows, header excluded
+
+    if (needMeasure) {
+      var probe = newDoc();
+      probe.autoTable(optionsFor(1, true));
+      var pt = probe.lastAutoTable;
+      if (pt && pt.columns && pt.columns.length) {
+        var used = pt.columns.reduce(function (a, c) { return a + (c.width || 0); }, 0);
+        measuredCols = pt.columns.map(function (c) { return c.width || 0; });
+        if (cfg.pdfFitWidth && used > avail + 0.5) {
+          // 0.995 keeps the last vertical rule inside the margin after rounding.
+          scale = Math.max(0.2, (avail / used) * 0.995);
+          measuredCols = measuredCols.map(function (w) { return w * scale; });
+        }
+
+        /* Deliberately no vertical auto-shrink. Scaling the type down to force a
+           page's rows onto one sheet silently cancels the very size and padding
+           changes the user just made — ask for more padding and you get smaller
+           text at the same pitch. Instead the packing below simply puts fewer
+           rows on a page. */
+        if (pt.body && pt.body.length === continuous.meta.length) {
+          rowHeights = [];
+          continuous.meta.forEach(function (mt, i) {
+            var h = pt.body[i].height || 0;
+            if (mt.isBand) bandHeight = Math.max(bandHeight, h);
+            else rowHeights.push(h);
+          });
+          /* How tall the repeated header block really is. autoTable's own
+             getHeadHeight() adds up each head row's tallest cell, and a heading
+             that spans both tiers reports its whole two-row height in the first
+             of them — so with merged headers it comes back a full row too big,
+             which quietly cost every page a row. Reading where the first body
+             row actually landed sidesteps the double count. */
+          var top = margin + titleBand;
+          var headH = 0;
+          if (pt.body.length && pt.body[0].cells) {
+            var firstCells = pt.body[0].cells;
+            for (var ck in firstCells) {
+              if (firstCells[ck] && typeof firstCells[ck].y === 'number' && firstCells[ck].y > top) {
+                headH = firstCells[ck].y - top;
+                break;
+              }
+            }
+          }
+          if (!(headH > 0) && pt.getHeadHeight) headH = pt.getHeadHeight(pt.columns);
+          availH = pageH - top - footReserve - headH;
+        }
+      }
+    }
+
+    /* ---- how many rows go on each page --------------------------------
+       Every page carries exactly the number set on the Pages tab; only the last
+       one carries the remainder. Nothing is averaged, capped or evened out — a
+       run of pages with different counts is far more jarring than a short final
+       page, so the count is fixed and the layout has to accommodate it. */
+    var tightPages = 0;    // pages whose rows are taller than the sheet
+    var droppedBands = 0;  // repeated group bands sacrificed to make room
+    var rowsThatFit = 0;   // how many rows a sheet would actually take
+
+    if (rowHeights && rowHeights.length && availH > 0) {
+      // Typical rather than worst case: the median row height answers "how many
+      // rows fit" more usefully than the tallest row in the report would.
+      var sorted = rowHeights.slice().sort(function (a, b) { return a - b; });
+      var median = sorted[Math.floor(sorted.length / 2)] || 0;
+      if (median > 0) rowsThatFit = Math.max(1, Math.floor((availH - bandHeight) / median));
+    }
+
+    /* The measured heights are not used to reduce the count. They decide one
+       thing only: whether the band repeated at the top of a carry-over page has
+       to be given up. That band is a convenience, not data, and dropping it buys
+       back a row's worth of height — which is usually the whole difference
+       between the rows fitting and not. */
+    function pageIsTight(from, len, withBand) {
+      if (!rowHeights || availH <= 0) return false;
+      var groups = groupField && cfg.pdfIncludeGroups;
+      var t = withBand ? bandHeight : 0;
+      for (var i = from; i < from + len; i++) {
+        t += rowHeights[i] || 0;
+        if (groups && (i === 0 || displayOf(filtered[i], groupField) !==
+                                  displayOf(filtered[i - 1], groupField))) {
+          t += bandHeight;
+        }
+      }
+      return t > availH;
+    }
+
+    if (matchMode) {
+      // Rebuild the bodies page by page. The arrays the group rescale and the
+      // line clamp work over must describe the pages that actually get drawn,
+      // not the continuous run used for measuring.
+      groupStyles = [];
+      bodyCells = [];
+      var per = perPage();
+      for (var at = 0; at < filtered.length; at += per) {
+        var len = Math.min(per, filtered.length - at);
+        var carries = groupField && cfg.pdfIncludeGroups && cfg.repeatGroupHeader && at > 0 &&
+          displayOf(filtered[at - 1], groupField) === displayOf(filtered[at], groupField);
+        var keepBand = true;
+        if (carries && pageIsTight(at, len, true) && !pageIsTight(at, len, false)) {
+          keepBand = false;
+          droppedBands++;
+        }
+        if (pageIsTight(at, len, carries && keepBand)) tightPages++;
+        var chunk = buildBody(filtered.slice(at, at + len), at, keepBand);
+        chunk.carriedWithoutBand = carries && !keepBand;
+        chunks.push(chunk);
+      }
+      if (!chunks.length) chunks.push(buildBody([], 0, true));
+    } else {
+      chunks.push(continuous);
+    }
+
+    if (scale !== 1) {
+      groupStyles.forEach(function (st) { st.fontSize = st.fontSize * scale; });
+    }
+
+    /* ---- max wrapped lines --------------------------------------------
+       autoTable fixes a row's height from its own line count, so clamping at
+       draw time would leave the row tall and half-empty. The measurement pass
+       has already told us each column's final width, so the text is cut to
+       size up front and the row comes out the right height. */
+    // Pinning is what stops each page from sizing its own columns from its own
+    // rows, which would make every sheet's grid slightly different.
+    var pinWidths = ((chunks.length > 1 || matchMode) && measuredCols) ? measuredCols : null;
+    if (cfg.maxLines > 0 && measuredCols) {
+      pinWidths = measuredCols;
+      var clampPad = Math.max(0.5, cfg.rowPad * 0.5) * scale;
+      var colStylesNow = buildColStyles(scale, null);
+      bodyCells.forEach(function (row) {
+        if (!row) return;                       // group band row
+        row.forEach(function (cell, ci) {
+          var text = String(cell.content == null ? '' : cell.content);
+          if (!text) return;
+          var w = (measuredCols[ci] || 0) - 2 * clampPad;
+          if (w <= 2) return;
+          var cs = colStylesNow[ci] || {};
+          doc.setFont(pdfFont, cell.styles.fontStyle || bodyBold);
+          doc.setFontSize(cell.styles.fontSize || cs.fontSize || bodyPt * scale);
+          var lines = doc.splitTextToSize(text, w);
+          if (lines.length <= cfg.maxLines) return;
+          lines = lines.slice(0, cfg.maxLines);
+          lines[lines.length - 1] = lines[lines.length - 1].replace(/\s+\S*$/, '') + '…';
+          cell.content = lines.join('\n');
+        });
+      });
+    }
+
+    chunks.forEach(function (chunk, i) {
+      if (i > 0) doc.addPage();
+      doc.autoTable(optionsFor(scale, false, pinWidths, chunk));
+    });
+
+    // Footers need the final page count, so they are drawn after the table.
+    var total = doc.getNumberOfPages();
+    for (var pg = 1; pg <= total; pg++) {
+      doc.setPage(pg);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(130, 130, 130);
+      if (cfg.pdfTimestamp) {
+        doc.text(title + '  \u00b7  generated ' + new Date().toLocaleString(), margin, pageH - margin + 8);
+      }
+      if (cfg.pdfPageNumbers) {
+        doc.text('Page ' + pg + ' of ' + total, pageW - margin, pageH - margin + 8, { align: 'right' });
+      }
+    }
+
+    downloadBlob(doc.output('blob'), slug(title) + '-' + stamp() + '.pdf');
+    var note = total + (total === 1 ? ' page' : ' pages') + ', ' + filtered.length + ' rows exported.';
+    if (scale < 1) note += ' Scaled to ' + Math.round(scale * 100) + '% to fit the page width.';
+    if (matchMode) {
+      if (tightPages) {
+        note += ' ' + perPage() + ' rows do not fit the sheet on ' + tightPages +
+          (tightPages === 1 ? ' page' : ' pages') + ', so those run over.';
+        if (rowsThatFit) note += ' About ' + rowsThatFit + ' fit at this font size and row padding.';
+      }
+      if (droppedBands) {
+        note += ' The repeated group band was left off ' + droppedBands +
+          (droppedBands === 1 ? ' page' : ' pages') + ' to keep the row count.';
+      }
+    }
+    toast(note);
+  }
+
+  /* =====================================================================
+     CSV export
+     ===================================================================== */
+  function exportCsv() {
+    var cols = tableCols.slice();
+    var lines = [];
+
+    // Merged bands can't survive in CSV, so emit them as a leading row with the
+    // label in the first cell of each run — what Excel users expect to see.
+    var csvRuns = bandRuns();
+    if (cfg.showHeaderBands && csvRuns.some(runHasContent)) {
+      var bandLine = [];
+      if (groupField) bandLine.push('');
+      csvRuns.forEach(function (r) {
+        var text = r.label;
+        if (r.range) text = text ? text + ' (' + r.range + ')' : r.range;
+        bandLine.push(csvCell(text));
+        for (var k = 1; k < r.count; k++) bandLine.push('');
+      });
+      lines.push(bandLine.join(','));
+    }
+
+    var head = [];
+    if (groupField) head.push(csvCell(groupField));
+    cols.forEach(function (c) {
+      if (c.hideHeader) { head.push(''); return; }
+      head.push(csvCell(c.sublabel ? c.label + ' (' + c.sublabel + ')' : c.label));
+    });
+    lines.push(head.join(','));
+    filtered.forEach(function (r) {
+      var line = [];
+      if (groupField) line.push(csvCell(displayOf(r, groupField)));
+      cols.forEach(function (c) { line.push(csvCell(displayOf(r, c.fieldName))); });
+      lines.push(line.join(','));
+    });
+    var blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+    var name = String(cfg.pdfTitle || '').trim() || sheetName || 'paginated-table';
+    downloadBlob(blob, slug(name) + '-' + stamp() + '.csv');
+  }
+
+  function csvCell(v) {
+    var s = String(v == null ? '' : v);
+    return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+
+  /* =====================================================================
+     Tableau interaction
+     ===================================================================== */
+  function persist(key, value) {
+    if (isDemo || !apiReady() || !tableau.extensions.settings) return;
+    try {
+      tableau.extensions.settings.set(key, String(value));
+      tableau.extensions.settings.saveAsync();
+    } catch (e) { /* read-only viewer, etc. */ }
+  }
+
+  function selectRowInTableau(row) {
+    if (!worksheet || !worksheet.selectMarksByValueAsync) return;
+    var sel = [];
+    if (groupField) sel.push({ fieldName: groupField, value: [cellOf(row, groupField).value] });
+    for (var i = 0; i < tableCols.length && sel.length < 3; i++) {
+      var c = tableCols[i];
+      if (c.isNumeric) continue;
+      sel.push({ fieldName: c.fieldName, value: [cellOf(row, c.fieldName).value] });
+    }
+    if (!sel.length) return;
+    try {
+      worksheet.selectMarksByValueAsync(sel, tableau.SelectionUpdateType.Replace)
+        .catch(function () { /* value not selectable — ignore */ });
+    } catch (e) { /* ignore */ }
+  }
+
+  function openSettings() {
+    var url = window.location.origin +
+      window.location.pathname.replace(/[^\/]*$/, '') +
+      'settings-dialog.html';
+
+    // The dialog is a separate document with no access to the worksheet, so
+    // pass it the current columns — that's what displayDialogAsync's payload
+    // argument is for. It powers the per-column date-label picker.
+    var payload = '';
+    try {
+      payload = JSON.stringify({
+        columns: tableCols.map(function (c) {
+          return { field: c.fieldName, label: c.label, isNumeric: !!c.isNumeric };
+        }),
+        anchor: anchorDate ? fmtDate(anchorDate, 'mm/dd/yy') : '',
+        anchorSource: anchorSource
+      });
+    } catch (e) { payload = ''; }
+
+    tableau.extensions.ui.displayDialogAsync(url, payload, { height: 720, width: 540 })
+      .then(function () {
+        loadSettings();
+        applyFilterAndSort();
+        render();
+      })
+      .catch(function () {
+        loadSettings();
+        applyFilterAndSort();
+        render();
+      });
+  }
+
+  async function refreshData() {
+    try {
+      rawRows = await getSummaryDataTable(worksheet);
+      var encMap = await getEncodingMap(worksheet);
+      buildTableCols(encMap);
+      applyFilterAndSort();
+      render();
+    } catch (err) {
+      showError(err);
+    }
+  }
+
+  function showError(err) {
+    el.bar.innerHTML = '';
+    el.host.innerHTML = '<div class="pt-msg"><div class="pt-msg-inner">' +
+      '<h2>Could not load the worksheet data</h2>' + esc(err && err.message ? err.message : err) +
+      '</div></div>';
+  }
+
+  /* =====================================================================
+     Demo mode (opened directly in a browser, outside Tableau)
+     ===================================================================== */
+  // Demo-mode only: let ?showRowNumbers=true&freezeCols=2&… preview settings
+  // combinations in a plain browser without a Tableau connection.
+  function applyUrlOverrides() {
+    if (!window.location.search || typeof URLSearchParams === 'undefined') return;
+    new URLSearchParams(window.location.search).forEach(function (v, k) {
+      if (!(k in DEFAULTS)) return;
+      var d = DEFAULTS[k];
+      if (typeof d === 'boolean') cfg[k] = (v === 'true' || v === '1');
+      else if (typeof d === 'number') { var n = parseFloat(v); if (!isNaN(n)) cfg[k] = n; }
+      else cfg[k] = v;
+    });
+  }
+
+  function loadDemoData(reason) {
+    isDemo = true;
+    demoReason = reason || '';
+    applyUrlOverrides();
+    var supers = ['A. Reyes', 'B. Okafor', 'C. Nguyen', 'D. Sokolov', 'E. Whitfield'];
+    var plans = ['Ashford', 'Bramble', 'Cypress', 'Dunmore', 'Elmhurst', 'Fairview'];
+    var villages = ['Northgate', 'Stonebridge', 'Willow Run'];
+    var cols = ['Superintendent', 'Job | Plan', 'Cus', 'Location | Template', 'Duration',
+      'Framing Start', 'CN Comp Date', 'CN Comp Days', 'FQI', 'Total Change',
+      'Week 1', 'Week 2', 'Week 3', 'Week 4'];
+
+    colMeta = {};
+    cols.forEach(function (c) {
+      var numeric = ['Duration', 'CN Comp Days', 'FQI', 'Total Change',
+        'Week 1', 'Week 2', 'Week 3', 'Week 4'].indexOf(c) !== -1;
+      var dated = ['Framing Start', 'CN Comp Date'].indexOf(c) !== -1;
+      colMeta[c] = {
+        dataType: numeric ? 'int' : (dated ? 'date' : 'string'),
+        isNumeric: numeric,
+        isDate: dated
+      };
+    });
+
+    rawRows = [];
+    var seed = 7;
+    function rnd() { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; }
+    supers.forEach(function (sup, si) {
+      var n = 14 + Math.floor(rnd() * 12);
+      for (var i = 0; i < n; i++) {
+        var row = {};
+        var d = new Date(2026, 0, 5 + Math.floor(rnd() * 200));
+        var mk = function (v, f) { return { value: v, formattedValue: f === undefined ? String(v) : f }; };
+        row['Superintendent'] = mk(sup);
+        row['Job | Plan'] = mk((3100 + si * 100 + i) + ' | ' + plans[Math.floor(rnd() * plans.length)]);
+        row['Cus'] = mk(rnd() > 0.5 ? 'Y' : 'N');
+        row['Location | Template'] = mk(villages[Math.floor(rnd() * villages.length)] + ' | Std-2');
+        row['Duration'] = mk(90 + Math.floor(rnd() * 80));
+        var comp = new Date(d.getFullYear(), d.getMonth() + 1, d.getDate(), 12);
+        row['Framing Start'] = mk(d, fmtDate(d, 'mm/dd/yy'));
+        row['CN Comp Date'] = mk(comp, fmtDate(comp, 'mm/dd/yy'));
+        row['CN Comp Days'] = mk(Math.floor(rnd() * 40) - 10);
+        var fqi = Math.floor(rnd() * 100);
+        row['FQI'] = mk(fqi, fqi + '%');   // one draw: value and display must agree
+        row['Total Change'] = mk(Math.floor(rnd() * 30) - 15);
+        for (var w = 1; w <= 4; w++) row['Week ' + w] = mk(Math.floor(rnd() * 12) - 4);
+
+        // Nulls in the three shapes Tableau actually delivers, so the preview
+        // exercises all of them: a real null, the "%null%" literal, and the
+        // empty string a string calculation produces.
+        if (i % 7 === 3) row['CN Comp Date'] = { value: null, formattedValue: '' };
+        if (i % 5 === 2) row['Total Change'] = { value: '%null%', formattedValue: '%null%' };
+        if (i % 11 === 4) row['Location | Template'] = { value: '', formattedValue: '' };
+        if (i % 4 === 1) row['Framing Start'] = { value: null, formattedValue: 'Null' };
+        rawRows.push(row);
+      }
+    });
+
+    tableCols = cols.slice(1).map(function (c) {
+      return {
+        fieldName: c, label: c, baseLabel: c, labelOverridden: false, hideHeader: false,
+        sublabel: null, dateTitle: null, isNumeric: colMeta[c].isNumeric
+      };
+    });
+    groupField = 'Superintendent';
+    sheetName = 'Demo Table';
+    applyHeaderOverrides();
+
+    // No worksheet here, so loadAnchorDate resolves from dateAnchorFallback only.
+    loadAnchorDate().then(function () {
+      applyDateHeaders();
+      applyFilterAndSort();
+      render();
+    });
+  }
+
+  /* =====================================================================
+     Keyboard shortcuts
+     ===================================================================== */
+  document.addEventListener('keydown', function (e) {
+    if (/^(INPUT|SELECT|TEXTAREA)$/.test((e.target.tagName || ''))) return;
+    if (e.key === 'ArrowRight' || e.key === 'PageDown') { goTo(page + 1); e.preventDefault(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { goTo(page - 1); e.preventDefault(); }
+    else if (e.key === 'Home') { goTo(1); e.preventDefault(); }
+    else if (e.key === 'End') { goTo(pageCount()); e.preventDefault(); }
+  });
+
+  var resizeTimer = null;
+  window.addEventListener('resize', function () {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function () { renderTable(); }, 120);
+  });
+
+  /* =====================================================================
+     Boot
+     ===================================================================== */
+  // Tableau always hosts the extension in an iframe. Top-level means someone
+  // opened index.html directly, where initializeAsync would hang forever
+  // waiting for a host that isn't there.
+  var inTableauFrame = window.parent !== window;
+
+  if (!apiReady()) {
+    loadDemoData('The Tableau Extensions API did not load. Inside Tableau this ' +
+      'means tableau.extensions.1.latest.min.js is missing from the folder ' +
+      'next to index.html.');
+  } else if (!inTableauFrame) {
+    loadDemoData('Opened directly in a browser — no Tableau host to connect to.');
+  } else {
+    // initializeAsync FIRST — worksheetContent is only populated once the
+    // handshake completes, so testing it beforehand always reads as undefined.
+    // Raced against a timeout so a stalled handshake reports itself instead of
+    // leaving a permanently blank view.
+    var handshakeTimeout = new Promise(function (_, reject) {
+      setTimeout(function () {
+        reject(new Error('Tableau did not finish the extension handshake within ' +
+          '15 seconds. If this is Tableau Server or Cloud, check that this URL is ' +
+          'allowlisted under Settings \u2192 Extensions with full data access.'));
+      }, 15000);
+    });
+
+    Promise.race([tableau.extensions.initializeAsync(), handshakeTimeout]).then(function () {
+      if (!tableau.extensions.worksheetContent) {
+        showError(new Error('This Tableau version does not support viz extensions. ' +
+          'Desktop / Server / Cloud 2024.2 or later is required.'));
+        return;
+      }
+      worksheet = tableau.extensions.worksheetContent.worksheet;
+      sheetName = worksheet.name || '';
+      loadSettings();
+      applyTheme();
+
+      worksheet.addEventListener(tableau.TableauEventType.SummaryDataChanged, function () {
+        refreshData();
+      });
+      tableau.extensions.settings.addEventListener(
+        tableau.TableauEventType.SettingsChanged,
+        function () {
+          loadSettings();
+          // Re-resolve the parameter: its name, or the whole date-header
+          // feature, may have just changed in the dialog.
+          loadAnchorDate().then(function () {
+            applyDateHeaders();
+            applyFilterAndSort();
+            render();
+          });
+        }
+      );
+
+      return loadAnchorDate().then(refreshData);
+    }).catch(function (err) {
+      console.log('Error initializing: ' + err.toString());
+      showError(new Error('initializeAsync failed: ' + (err && err.message ? err.message : err)));
+    });
+  }
+})();
+</script>
+</body>
+</html>
