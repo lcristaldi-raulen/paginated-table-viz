@@ -802,21 +802,19 @@
     <div class="row"><label class="lbl" for="bg">Background</label><div class="ctl"><input type="color" id="bg" /></div></div>
     <div class="row"><label class="lbl" for="text">Body text</label><div class="ctl"><input type="color" id="text" /></div></div>
     <div class="row"><label class="lbl" for="band">Row shading</label><div class="ctl"><input type="color" id="band" /></div></div>
-    <div class="row"><label class="lbl" for="border">Gridlines</label><div class="ctl"><input type="color" id="border" /></div></div>
+    <div class="row"><label class="lbl" for="rowLineColor">Row divider lines</label><div class="ctl"><input type="color" id="rowLineColor" /></div></div>
     <div class="row">
-      <label class="lbl" for="borderWidth">Gridline width</label>
+      <label class="lbl" for="borderWidth">Row divider width</label>
       <div class="ctl">
         <input type="range" id="borderWidth" min="0" max="4" step="0.5" />
         <span class="rangeval" id="borderWidthVal"></span>
       </div>
     </div>
-    <div class="hint">Thickness of the rules between rows and columns, in pixels. Set it to 0 for no
-      gridlines at all. The line under the column headers is drawn at twice this weight, and the PDF
-      matches whatever you pick here.</div>
-    <div class="row"><label class="lbl" for="rowLineColor">Row divider lines</label><div class="ctl"><input type="color" id="rowLineColor" /></div></div>
-    <div class="hint">Colour of the rule under every row, including the group bands. Set separately
-      from <b>Gridlines</b> above, which keeps the header separators, so row lines can be played down
-      or picked out without changing the header. Carries into the PDF.</div>
+    <div class="hint">The rule under every row, group bands included, in this colour and weight.
+      Width is in pixels; 0 removes the row lines entirely. The line under the column headers is
+      drawn at twice the weight. There are no vertical lines between columns — for those, tick
+      <b>Div</b> beside a column on the Table tab. The PDF matches all of it.</div>
+    <input type="hidden" id="border" />
     <div class="row"><label class="lbl" for="hover">Hover highlight</label><div class="ctl"><input type="color" id="hover" /></div></div>
 
     <h3>Header row</h3>
