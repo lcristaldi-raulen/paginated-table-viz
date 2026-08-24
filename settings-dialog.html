@@ -813,6 +813,10 @@
     <div class="hint">Thickness of the rules between rows and columns, in pixels. Set it to 0 for no
       gridlines at all. The line under the column headers is drawn at twice this weight, and the PDF
       matches whatever you pick here.</div>
+    <div class="row"><label class="lbl" for="rowLineColor">Row divider lines</label><div class="ctl"><input type="color" id="rowLineColor" /></div></div>
+    <div class="hint">Colour of the rule under every row, including the group bands. Set separately
+      from <b>Gridlines</b> above, which keeps the header separators, so row lines can be played down
+      or picked out without changing the header. Carries into the PDF.</div>
     <div class="row"><label class="lbl" for="hover">Hover highlight</label><div class="ctl"><input type="color" id="hover" /></div></div>
 
     <h3>Header row</h3>
@@ -956,6 +960,7 @@
     band: '#f4f6f9',
     border: '#e5e7eb',
     borderWidth: 1,
+    rowLineColor: '#e5e7eb',
     hover: '#eef2ff',
     groupBg: '#e8edf5',
     groupText: '#1f2937',
@@ -963,11 +968,11 @@
   };
 
   var PRESETS = {
-    light: { bg: '#ffffff', text: '#1f2937', headBg: '#f3f4f6', headText: '#111827', band: '#f4f6f9', border: '#e5e7eb', hover: '#eef2ff', groupBg: '#e8edf5', groupText: '#1f2937', accent: '#2f6f4e', bandBg: '#dde6f2', bandText: '#1f2937' },
-    slate: { bg: '#ffffff', text: '#1e293b', headBg: '#334155', headText: '#f8fafc', band: '#f1f5f9', border: '#cbd5e1', hover: '#e2e8f0', groupBg: '#dbe3ec', groupText: '#0f172a', accent: '#334155', bandBg: '#1e293b', bandText: '#f8fafc' },
-    green: { bg: '#ffffff', text: '#14342a', headBg: '#2f6f4e', headText: '#ffffff', band: '#f0f7f3', border: '#d5e5db', hover: '#e2f0e8', groupBg: '#dcebe2', groupText: '#14342a', accent: '#2f6f4e', bandBg: '#1f4d36', bandText: '#ffffff' },
-    mono:  { bg: '#ffffff', text: '#000000', headBg: '#ffffff', headText: '#000000', band: '#ffffff', border: '#000000', hover: '#f2f2f2', groupBg: '#e6e6e6', groupText: '#000000', accent: '#000000', bandBg: '#d9d9d9', bandText: '#000000' },
-    dark:  { bg: '#14181f', text: '#e5e7eb', headBg: '#1f2733', headText: '#f9fafb', band: '#1a2029', border: '#313b49', hover: '#26303d', groupBg: '#25303f', groupText: '#f9fafb', accent: '#5eead4', bandBg: '#2b3646', bandText: '#f9fafb' }
+    light: { bg: '#ffffff', text: '#1f2937', headBg: '#f3f4f6', headText: '#111827', band: '#f4f6f9', border: '#e5e7eb', rowLineColor: '#e5e7eb', hover: '#eef2ff', groupBg: '#e8edf5', groupText: '#1f2937', accent: '#2f6f4e', bandBg: '#dde6f2', bandText: '#1f2937' },
+    slate: { bg: '#ffffff', text: '#1e293b', headBg: '#334155', headText: '#f8fafc', band: '#f1f5f9', border: '#cbd5e1', rowLineColor: '#cbd5e1', hover: '#e2e8f0', groupBg: '#dbe3ec', groupText: '#0f172a', accent: '#334155', bandBg: '#1e293b', bandText: '#f8fafc' },
+    green: { bg: '#ffffff', text: '#14342a', headBg: '#2f6f4e', headText: '#ffffff', band: '#f0f7f3', border: '#d5e5db', rowLineColor: '#d5e5db', hover: '#e2f0e8', groupBg: '#dcebe2', groupText: '#14342a', accent: '#2f6f4e', bandBg: '#1f4d36', bandText: '#ffffff' },
+    mono:  { bg: '#ffffff', text: '#000000', headBg: '#ffffff', headText: '#000000', band: '#ffffff', border: '#000000', rowLineColor: '#000000', hover: '#f2f2f2', groupBg: '#e6e6e6', groupText: '#000000', accent: '#000000', bandBg: '#d9d9d9', bandText: '#000000' },
+    dark:  { bg: '#14181f', text: '#e5e7eb', headBg: '#1f2733', headText: '#f9fafb', band: '#1a2029', border: '#313b49', rowLineColor: '#313b49', hover: '#26303d', groupBg: '#25303f', groupText: '#f9fafb', accent: '#5eead4', bandBg: '#2b3646', bandText: '#f9fafb' }
   };
 
   var RANGES = ['numberedWindow', 'freezeCols', 'colMin', 'rowPad', 'bodySize', 'headSize',
