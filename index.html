@@ -18,6 +18,7 @@
     --pt-head-text: #111827;
     --pt-band: #f9fafb;
     --pt-border: #e5e7eb;
+    --pt-row-line: #e5e7eb;
     --pt-hover: #eef2ff;
     --pt-divider: #c3ccd9;
     --pt-divider-w: 2px;
@@ -116,7 +117,7 @@
   }
   table.pt th, table.pt td {
     padding: var(--pt-row-pad) 7px;
-    border-bottom: var(--pt-border-w, 1px) solid var(--pt-border);
+    border-bottom: var(--pt-border-w, 1px) solid var(--pt-row-line, var(--pt-border));
     text-align: left;
     vertical-align: top;
     min-width: var(--pt-col-min);
@@ -208,7 +209,7 @@
     color: var(--pt-group-text);
     font-weight: 600;
     font-size: var(--pt-group-size);
-    border-bottom: var(--pt-border-w, 1px) solid var(--pt-border);
+    border-bottom: var(--pt-border-w, 1px) solid var(--pt-row-line, var(--pt-border));
     white-space: nowrap;
   }
   table.pt.nowrap tbody tr.group td { overflow: visible; max-width: none; }
@@ -410,6 +411,7 @@
     band: '#f4f6f9',
     border: '#e5e7eb',
     borderWidth: 1,
+    rowLineColor: '#e5e7eb',
     hover: '#eef2ff',
     groupBg: '#e8edf5',
     groupText: '#1f2937',
@@ -546,6 +548,10 @@
     r.setProperty('--pt-head-text', cfg.headText);
     r.setProperty('--pt-band', cfg.banding ? cfg.band : 'transparent');
     r.setProperty('--pt-border', cfg.border);
+    /* The rules between rows get their own colour so they can be played down
+       against a darker header grid, or picked out against row shading, without
+       touching the header separators. Falls back to the gridline colour. */
+    r.setProperty('--pt-row-line', cfg.rowLineColor || cfg.border);
     /* 0 is a legitimate choice — it switches the gridlines off entirely
        without needing a separate toggle. The header underline stays at twice
        the body weight, the proportion the table has always had. */
@@ -2391,7 +2397,7 @@
         fontStyle: bodyBold,
         cellPadding: padY * scale,
         overflow: 'linebreak',
-        lineColor: hexToRgb(cfg.border),
+        lineColor: hexToRgb(cfg.rowLineColor || cfg.border),
         lineWidth: borderPt,
         textColor: hexToRgb(cfg.text)
       },
