@@ -155,7 +155,7 @@
     color: var(--pt-head-text);
     font-size: var(--pt-head-size);
     font-weight: var(--pt-head-weight);
-    border-bottom: var(--pt-border-w2, 2px) solid var(--pt-border);
+    border-bottom: var(--pt-border-w2, 2px) solid var(--pt-row-line, var(--pt-border));
     white-space: nowrap;
     user-select: none;
   }
@@ -166,7 +166,7 @@
     color: var(--pt-band-text);
     font-weight: 700; font-size: var(--pt-band-size);
     letter-spacing: .02em;
-    border-bottom: var(--pt-border-w, 1px) solid var(--pt-border);
+    border-bottom: var(--pt-border-w, 1px) solid var(--pt-row-line, var(--pt-border));
     /* The half-pixel each side gives the band row 1px more height than the row
        padding alone would, which keeps the merged name off the rules above and
        below it. Matched by an extra 0.75pt in the PDF. */
@@ -179,7 +179,7 @@
     letter-spacing: .01em; margin-top: 1px;
   }
   table.pt thead tr.bands th.band-cell.empty { background: var(--pt-head-bg); }
-  table.pt thead tr.bands th.spanned { border-left: var(--pt-border-w, 1px) solid var(--pt-border); }
+  table.pt thead tr.bands th.spanned { border-left: var(--pt-border-w, 1px) solid var(--pt-row-line, var(--pt-border)); }
   table.pt thead th .hdr-sub {
     display: block; font-weight: 400; font-size: .88em; opacity: .72;
     letter-spacing: .01em; margin-top: 1px;
@@ -256,7 +256,7 @@
   tbody tr.data.banded td.frozen { background: var(--pt-band); }
   tbody tr.group td.frozen { background: var(--pt-group-bg); }
   tbody tr.data:hover td.frozen { background: var(--pt-hover); }
-  td.frozen.last-frozen, th.frozen.last-frozen { border-right: var(--pt-border-w, 1px) solid var(--pt-border); }
+  td.frozen.last-frozen, th.frozen.last-frozen { border-right: var(--pt-border-w, 1px) solid var(--pt-row-line, var(--pt-border)); }
 
   /* ---------- empty / error states ---------- */
   .pt-msg {
@@ -2074,6 +2074,7 @@
     var borderPx = Number(cfg.borderWidth);
     if (!isFinite(borderPx) || borderPx < 0) borderPx = 1;
     var borderPt = borderPx === 0 ? 0 : Math.max(0.1, borderPx * 0.75);
+    var lineRgb = hexToRgb(cfg.rowLineColor || cfg.border);
 
     var pdfFont = pdfFontFamily();
 
@@ -2356,6 +2357,25 @@
        made them look like they faded in and out. Filled rectangles on whole-point
        geometry: viewers snap thin marks to the device pixel grid, and identical
        geometry snaps identically, so no rule comes out lighter than another. */
+    /* Every horizontal rule in the table is drawn here, once, after all the
+       cells on the page are down. autoTable can stroke cell borders itself, but
+       it paints each cell's stroke before the next cell's fill, so a rule ends
+       up half covered and the same table prints some rules at full weight and
+       others at half. Filled rectangles over the finished page cannot be
+       clipped by anything. */
+    function drawRowRules(g) {
+      if (!g || !g.rules || !isFinite(g.left) || g.right <= g.left) return;
+      var keys = Object.keys(g.rules);
+      if (!keys.length) return;
+      doc.saveGraphicsState();
+      doc.setFillColor(lineRgb[0], lineRgb[1], lineRgb[2]);
+      keys.forEach(function (k) {
+        var t = g.rules[k];
+        doc.rect(g.left, parseFloat(k) - t / 2, g.right - g.left, t, 'F');
+      });
+      doc.restoreGraphicsState();
+    }
+
     function drawDividers(g) {
       if (!g || !isFinite(g.top) || g.bottom <= g.top) return;
       var idxs = Object.keys(g.xs);
@@ -2397,8 +2417,7 @@
         fontStyle: bodyBold,
         cellPadding: padY * scale,
         overflow: 'linebreak',
-        lineColor: hexToRgb(cfg.rowLineColor || cfg.border),
-        lineWidth: borderPt,
+        lineWidth: 0,
         textColor: hexToRgb(cfg.text)
       },
       headStyles: {
@@ -2415,8 +2434,7 @@
           top: headPadY * scale, bottom: headPadY * scale,
           left: padX * scale, right: padX * scale
         },
-        lineColor: hexToRgb(cfg.border),
-        lineWidth: borderPt
+        lineWidth: 0
       },
       alternateRowStyles: cfg.banding ? { fillColor: hexToRgb(cfg.band) } : { fillColor: false },
       columnStyles: buildColStyles(scale, pin),
@@ -2427,10 +2445,25 @@
            cells that span a single column give the true boundary — a merged band
            reports the start of its whole span. */
         var g = pageGeom[data.pageNumber] ||
-                (pageGeom[data.pageNumber] = { top: Infinity, bottom: -Infinity, xs: {} });
+                (pageGeom[data.pageNumber] = { top: Infinity, bottom: -Infinity, xs: {},
+                                               left: Infinity, right: -Infinity, rules: {} });
         if (data.cell.y < g.top) g.top = data.cell.y;
         var below = data.cell.y + data.cell.height;
         if (below > g.bottom) g.bottom = below;
+        if (data.cell.x < g.left) g.left = data.cell.x;
+        var rightEdge = data.cell.x + data.cell.width;
+        if (rightEdge > g.right) g.right = rightEdge;
+        /* One entry per row boundary, keyed to a hundredth of a point so the
+           cells of one row all land on the same key. The bottom of the header
+           block carries twice the weight, the same as on screen; a band row
+           inside that block is an ordinary rule. */
+        if (borderPt > 0) {
+          var key = below.toFixed(2);
+          var weight = data.section === 'head' &&
+                       (!pdfWantBandRow || data.row.index > 0 || data.cell.rowSpan > 1)
+                       ? borderPt * 2 : borderPt;
+          if (!(g.rules[key] > weight)) g.rules[key] = weight;
+        }
         var idx = data.column.index - (cfg.showRowNumbers ? 1 : 0);
         if (pdfDividers[idx] && data.cell.colSpan === 1 && g.xs[idx] === undefined) {
           g.xs[idx] = data.cell.x;
@@ -2443,6 +2476,7 @@
       didDrawPage: function (data) {
         if (silent) return;
         var physical = doc.getNumberOfPages();
+        drawRowRules(pageGeom[data.pageNumber]);
         drawDividers(pageGeom[data.pageNumber]);
         // A page that opens partway through a group and did not get a repeated
         // band of its own is named in the header area instead.
